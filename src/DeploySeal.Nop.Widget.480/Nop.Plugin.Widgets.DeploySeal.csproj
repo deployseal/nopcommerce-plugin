@@ -1,0 +1,95 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    DeploySeal widget for nopCommerce 4.80 (net9.0).
+
+    Identical in shape to the 4.90 project (4.80 plugins also resolve Nop.Web and
+    Build/ClearPluginAssemblies.proj through $(SolutionDir)); the two versions differ only in C#.
+
+    This project is not buildable in place: nopCommerce assemblies are not on NuGet, so it
+    references Nop.Web through $(SolutionDir) exactly like the plugins that ship with
+    nopCommerce. build/build.ps1 copies this folder into
+    <nop checkout>/src/Plugins/Nop.Plugin.Widgets.DeploySeal and builds it there with
+    -p:SolutionDir=<checkout>/src/ -p:DeploySealRepoRoot=<this repo>.
+
+    The platform-independent logic lives in src/DeploySeal.Nop.Core and is compiled INTO this
+    assembly (see the Compile Include below) so the store gets a single DLL. The Razor views and
+    the logo are byte-identical across nopCommerce versions and are linked in from
+    src/DeploySeal.Nop.Widget.Shared. DeploySeal-owned paths use forward slashes so the same
+    file builds on Windows and inside a Linux SDK container.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>Nop.Plugin.Widgets.DeploySeal</AssemblyName>
+    <RootNamespace>Nop.Plugin.Widgets.DeploySeal</RootNamespace>
+    <Version>1.0.0</Version>
+    <Company>DeploySeal</Company>
+    <Authors>DeploySeal</Authors>
+    <Product>DeploySeal widget for nopCommerce</Product>
+    <Copyright>Copyright © DeploySeal</Copyright>
+    <PackageProjectUrl>https://deployseal.com/docs/widget</PackageProjectUrl>
+    <OutputPath>$(SolutionDir)\Presentation\Nop.Web\Plugins\Widgets.DeploySeal</OutputPath>
+    <OutDir>$(OutputPath)</OutDir>
+    <!-- Keep NuGet-cached DLLs out of the plugin folder; nopCommerce already ships them. -->
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <!-- A plugin is loaded by nopCommerce from Nop.Web's own context; it needs no deps.json of its own. -->
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <!-- Ship symbols only in Debug builds. -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>annotations</Nullable>
+    <LangVersion>latest</LangVersion>
+    <!-- Where this repository lives; overridden by build.ps1 because the project is built from a copy. -->
+    <DeploySealRepoRoot Condition="'$(DeploySealRepoRoot)' == ''">$(MSBuildProjectDirectory)/../..</DeploySealRepoRoot>
+    <DeploySealShared>$(DeploySealRepoRoot)/src/DeploySeal.Nop.Widget.Shared</DeploySealShared>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(DeploySealRepoRoot)/src/DeploySeal.Nop.Core/**/*.cs"
+             Exclude="$(DeploySealRepoRoot)/src/DeploySeal.Nop.Core/bin/**;$(DeploySealRepoRoot)/src/DeploySeal.Nop.Core/obj/**"
+             Link="Core/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Remove="plugin.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="plugin.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="$(DeploySealShared)/logo.png" Link="logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="$(DeploySealShared)/Views/Configure.cshtml" Link="Views/Configure.cshtml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="$(DeploySealShared)/Views/PublicInfo.cshtml" Link="Views/PublicInfo.cshtml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="$(DeploySealShared)/Views/_ViewImports.cshtml" Link="Views/_ViewImports.cshtml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(SolutionDir)\Presentation\Nop.Web\Nop.Web.csproj" />
+    <ClearPluginAssemblies Include="$(SolutionDir)\Build\ClearPluginAssemblies.proj" />
+  </ItemGroup>
+
+  <!--
+    Runs after Build: nopCommerce's ClearPluginAssemblies deletes every DLL/PDB that Nop.Web already
+    ships; the ProjectReference to the Nop.Web *application* also drops its deps/runtimeconfig/
+    staticwebassets manifests into the folder, which nothing prunes, so they are deleted here.
+    What is left: the plugin DLL, plugin.json, Views, logo.png.
+  -->
+  <Target Name="NopTarget" AfterTargets="Build">
+    <MSBuild Projects="@(ClearPluginAssemblies)" Properties="PluginPath=$(OutDir)" Targets="NopClear" />
+    <ItemGroup>
+      <DeploySealStrayFiles Include="$(OutDir)Nop.Web.*;$(OutDir)*.deps.json;$(OutDir)*.staticwebassets.*.json" />
+    </ItemGroup>
+    <Delete Files="@(DeploySealStrayFiles)" />
+  </Target>
+
+</Project>

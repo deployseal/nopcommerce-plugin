@@ -1,0 +1,47 @@
+# Local nopCommerce 4.80.9 + PostgreSQL with the built plugin folder bind-mounted in.
+#
+#   .\build\build.ps1 -Version 4.80
+#   docker compose -f docker/docker-compose.4.80.yml up -d
+#   open http://localhost:8080  -> install wizard (PostgreSQL, server "db", database/user/password "nop")
+#   node tests/e2e/verify.mjs 4.80   -> drives the wizard, installs + configures the plugin, asserts the tag
+#   docker compose -f docker/docker-compose.4.80.yml down -v
+#
+# nopCommerce 4.80 references Npgsql 9.0.1, so PostgreSQL 17 (what "postgres:latest" resolved to when
+# 4.80.x shipped) is the server it was exercised against.
+#
+# nopCommerce stops its own process after the install wizard; "restart: unless-stopped" brings it back.
+
+name: deployseal-nop480
+
+services:
+  db:
+    image: postgres:17-alpine
+    # Deliberately NO "POSTGRES_DB: nop": nopCommerce must create the database itself
+    # ("Create database if it doesn't exist" in the wizard) because that is the only path on
+    # which it runs CREATE EXTENSION citext / pgcrypto; a pre-created database fails the
+    # install with `type "citext" does not exist`.
+    environment:
+      POSTGRES_USER: nop
+      POSTGRES_PASSWORD: nop
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nop -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - nop480-db:/var/lib/postgresql/data
+
+  nop:
+    image: nopcommerceteam/nopcommerce:4.80.9
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../.nop/4.80/src/Presentation/Nop.Web/Plugins/Widgets.DeploySeal:/app/Plugins/Widgets.DeploySeal
+
+volumes:
+  nop480-db:

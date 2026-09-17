@@ -1,0 +1,11 @@
+{
+  "Group": "Widgets",
+  "FriendlyName": "DeploySeal widget",
+  "SystemName": "Widgets.DeploySeal",
+  "Version": "1.0.0",
+  "SupportedVersions": [ "4.70" ],
+  "Author": "DeploySeal",
+  "DisplayOrder": 1,
+  "FileName": "Nop.Plugin.Widgets.DeploySeal.dll",
+  "Description": "Loads the DeploySeal tester widget on the storefront and declares which environment and build each page belongs to, so release evidence lands on the right environment."
+}

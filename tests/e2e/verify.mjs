@@ -9,9 +9,9 @@
 //      and that it is absent on /Admin.
 //
 // Usage (Playwright is resolved from DS_E2E_NODE_MODULES when this repo has no node_modules):
-//   DS_E2E_NODE_MODULES=<path to a node_modules with playwright> node tests/e2e/verify.mjs [4.60|4.90|...]
+//   DS_E2E_NODE_MODULES=<path to a node_modules with playwright> node tests/e2e/verify.mjs [4.60|4.70|4.80|4.90]
 // The optional argument is the nopCommerce major.minor from build/versions.json; it sets the
-// expected full version (from the tag), the port (80 + minor, e.g. 4.60 -> 8060) and the
+// expected full version (from the tag), the port (80 + minor: 4.60 -> 8060, 4.70 -> 8070, 4.80 -> 8080, 4.90 -> 8090) and the
 // container name docker/docker-compose.<ver>.yml produces. Env overrides any of them:
 //   DS_NOP_VERSION    major.minor or full version (default: the argument, else 4.90)
 //   DS_NOP_URL        base URL            (default http://localhost:80<minor>, e.g. 8060)
@@ -20,9 +20,11 @@
 //   DS_ADMIN_EMAIL / DS_ADMIN_PASSWORD   admin credentials (created by the wizard if needed)
 //   DS_SCREENSHOT     output PNG          (default artifacts/configure-<major.minor>.png)
 //
-// nopCommerce 4.60 and 4.90 share every selector this script touches (install wizard ids, the
-// storefront login button, the Local plugins grid and its install-plugin-link-<SystemName> /
-// plugin-apply-changes buttons, the plugin's own Configure page), so there is one script.
+// nopCommerce 4.60, 4.70, 4.80 and 4.90 share every selector this script touches (install wizard
+// ids, the storefront login button, the Local plugins grid and its install-plugin-link-<SystemName> /
+// plugin-apply-changes buttons, the plugin's own Configure page), so there is one script. Nothing
+// here is per version: the argument is looked up in build/versions.json, so a new entry there plus a
+// docker/docker-compose.<ver>.yml with the matching port and project name is all a new version needs.
 
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';

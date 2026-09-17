@@ -17,15 +17,15 @@ placed in `<head>`, once, only on the public storefront (never in `/Admin` unles
 |-------------|-----------------|---------|---------------------------------|----------------------------|
 | 4.60        | release-4.60.6  | net7.0  | `src/DeploySeal.Nop.Widget.460` | **verified end to end** (built in the .NET 7 SDK container) |
 | 4.90        | release-4.90.8  | net9.0  | `src/DeploySeal.Nop.Widget.490` | **reference build, verified end to end** |
-| 4.80        | release-4.80.9  | net9.0  | `src/DeploySeal.Nop.Widget.480` | planned                    |
-| 4.70        | release-4.70.5  | net8.0  | `src/DeploySeal.Nop.Widget.470` | planned                    |
+| 4.80        | release-4.80.9  | net9.0  | `src/DeploySeal.Nop.Widget.480` | **verified end to end** (built with the local SDK 9) |
+| 4.70        | release-4.70.5  | net8.0  | `src/DeploySeal.Nop.Widget.470` | **verified end to end** (built in the .NET 8 SDK container) |
 
 `build/versions.json` is the single list of versions the build knows about (tag, TFM and the SDK
 container image used when that SDK is not installed locally).
 
 The plugin behaves identically on every supported version: same settings, same Configure page,
 same tag. The only visible difference is the build marker's default, which is that version's
-`NopVersion.FULL_VERSION` (`4.60.6`, `4.90.8`).
+`NopVersion.FULL_VERSION` (`4.60.6`, `4.70.5`, `4.80.9`, `4.90.8`).
 
 ## Install (store administrator)
 
@@ -70,6 +70,10 @@ src/DeploySeal.Nop.Widget.Shared/ what is byte-identical across nopCommerce vers
                                   and logo.png
 src/DeploySeal.Nop.Widget.490/    the 4.90 plugin: plugin class, settings, admin controller, view component,
                                   route + DI startup, plugin.json
+src/DeploySeal.Nop.Widget.480/    the 4.80 plugin (net9.0): the 4.90 files with one API difference (see
+                                  "nopCommerce 4.80 and 4.70 notes")
+src/DeploySeal.Nop.Widget.470/    the 4.70 plugin (net8.0): the 4.90 files with the 4.80 URL difference, the
+                                  4.60 permission check and the 4.60 csproj path style
 src/DeploySeal.Nop.Widget.460/    the 4.60 plugin (net7.0): same files minus the RouteProvider, with the
                                   4.60 API spellings (see "nopCommerce 4.60 notes")
 tests/DeploySeal.Nop.Core.Tests/  xunit tests for Core (slug, origins, marker composition/limits, byte-exact tag)
@@ -78,6 +82,8 @@ build/build.ps1                   clone nop tag → copy project in → build (l
 build/versions.json               nop version → tag / TFM / SDK container image
 build/gen-logo.py                 regenerates logo.png from the product's seal outlines (Pillow only)
 docker/docker-compose.4.60.yml    nopcommerceteam/nopcommerce:4.60.6 + PostgreSQL 15, port 8060, plugin folder bind-mounted
+docker/docker-compose.4.70.yml    nopcommerceteam/nopcommerce:4.70.5 + PostgreSQL 16, port 8070, plugin folder bind-mounted
+docker/docker-compose.4.80.yml    nopcommerceteam/nopcommerce:4.80.9 + PostgreSQL 17, port 8080, plugin folder bind-mounted
 docker/docker-compose.4.90.yml    nopcommerceteam/nopcommerce:4.90.8 + PostgreSQL 17, port 8090, plugin folder bind-mounted
 ```
 
@@ -86,7 +92,10 @@ so a store ships exactly one DLL and each nopCommerce version gets a plugin buil
 TFM. Core is kept to C# 11 / net7.0 APIs so the 4.60 port compiles the same files unchanged. The
 views and the logo are linked from `src/DeploySeal.Nop.Widget.Shared` the same way (`<Content
 Link>`), so there is one copy of the Configure page; the per-version folders hold only C# and
-`plugin.json`.
+`plugin.json`. The four supported versions all render that one copy: the tag helpers it uses
+(`nop-editor`, `nop-select`, `nop-label`, `nop-override-store-checkbox`), the `_ConfigurePlugin`
+layout and `StoreScopeConfigurationViewComponent` have the same names and attributes from 4.60 to
+4.90, so no per-version view copy was needed.
 
 ## Build
 
@@ -96,6 +105,8 @@ is not installed), and the .NET SDK matching the version's TFM for a native buil
 
 ```powershell
 .\build\build.ps1 -Version 4.90
+.\build\build.ps1 -Version 4.80
+.\build\build.ps1 -Version 4.70
 .\build\build.ps1 -Version 4.60
 ```
 
@@ -108,10 +119,11 @@ clearly for versions that have a `versions.json` entry but no project yet.
 
 ### Building in the SDK container
 
-nopCommerce 4.60 is net7.0 and 4.70 is net8.0; those SDKs are end of life and are not expected on a
-developer machine. When `dotnet --list-sdks` shows no SDK with the TFM's major version (or when
-`-UseDocker` is passed), `build.ps1` runs **only the build step** inside the version's `sdkImage`
-from `versions.json` (`mcr.microsoft.com/dotnet/sdk:7.0` for 4.60) with the repository mounted at
+nopCommerce 4.60 is net7.0 (SDK end of life) and 4.70 is net8.0 (LTS until November 2026, but not
+what a machine that builds 4.80/4.90 has installed); neither SDK is expected on a developer machine.
+When `dotnet --list-sdks` shows no SDK with the TFM's major version (or when `-UseDocker` is passed),
+`build.ps1` runs **only the build step** inside the version's `sdkImage` from `versions.json`
+(`mcr.microsoft.com/dotnet/sdk:7.0` for 4.60, `sdk:8.0` for 4.70) with the repository mounted at
 `/work` and a named volume (`deployseal-nuget`) caching NuGet packages between runs. Clone, copy,
 folder verification and zip stay on the host, and the plugin folder lands in the same place
 (`.nop/<ver>/src/Presentation/Nop.Web/Plugins/Widgets.DeploySeal`), so the compose files and
@@ -119,8 +131,9 @@ folder verification and zip stay on the host, and the plugin folder lands in the
 checkout, so a later host build of the same version (should you install that SDK) starts from a
 Linux-produced `obj/`; delete `.nop/<ver>/src/**/obj` first in that case. Measured on Windows with
 Docker Desktop (bind mount, cold NuGet cache): 4 min 30 s for the first 4.60 build (restore of the
-Nop.Web dependency tree took 1 min 15 s of that; the rest is compiling Nop.Web and its libraries).
-The script prints "Build step took N s" so the first run is not mistaken for a hang.
+Nop.Web dependency tree took 1 min 15 s of that; the rest is compiling Nop.Web and its libraries),
+2 min 5 s for the 4.70 build step once the net8.0 packages were in the volume. The script prints
+"Build step took N s" so the first run is not mistaken for a hang.
 
 Unit tests (Core multi-targets net7.0 and net9.0; the test project runs on net9.0 by default and on
 whatever `DeploySealTestTfm` names):
@@ -136,8 +149,8 @@ End to end (real nopCommerce in Docker, PostgreSQL, install wizard, plugin insta
 storefront/admin assertions, SHA-file marker, screenshot to `artifacts/configure-<ver>.png`):
 
 ```powershell
-.\build\build.ps1 -Version 4.60                                             # or 4.90
-docker compose -f docker/docker-compose.4.60.yml up -d                      # port 8060 (4.90: 8090)
+.\build\build.ps1 -Version 4.60                                             # or 4.70 / 4.80 / 4.90
+docker compose -f docker/docker-compose.4.60.yml up -d                      # port 8060 (4.70: 8070, 4.80: 8080, 4.90: 8090)
 $env:DS_E2E_NODE_MODULES = "<a node_modules folder that has playwright>"   # or npm i playwright in tests/e2e
 node tests/e2e/verify.mjs 4.60
 docker compose -f docker/docker-compose.4.60.yml down -v
@@ -146,9 +159,44 @@ docker compose -f docker/docker-compose.4.60.yml down -v
 `verify.mjs <ver>` takes the expected full version from the tag in `versions.json`, the port from the
 version digits (`80` + `60`) and the container name from the compose project name
 (`deployseal-nop460-nop-1`), all overridable with `DS_NOP_VERSION`, `DS_NOP_URL`, `DS_NOP_CONTAINER`
-(empty skips the SHA-file scenario). The same script drives 4.60 and 4.90: every selector it touches
-(install wizard, storefront login, Local plugins grid, Apply changes, the plugin's Configure page) is
-the same in both.
+(empty skips the SHA-file scenario). The same script drives all four versions: every selector it
+touches (install wizard, storefront login, Local plugins grid, Apply changes, the plugin's Configure
+page) is the same in each.
+
+## nopCommerce 4.80 and 4.70 notes
+
+Both projects are the 4.90 files with the smallest set of edits their API surface forces. What
+moved between the versions, from newest to oldest (compare each tag's
+`src/Plugins/Nop.Plugin.Widgets.GoogleAnalytics` with its neighbours):
+
+| | 4.90 | 4.80 | 4.70 | 4.60 |
+|---|---|---|---|---|
+| Configuration URL | `INopUrlHelper.RouteUrl(routeName)` | `IUrlHelperFactory.GetUrlHelper(IActionContextAccessor.ActionContext).RouteUrl(routeName)` | same as 4.80 | `IWebHelper.GetStoreLocation()` + path |
+| Named route (`RouteProvider`) | yes | yes | yes | no |
+| Permission check | `[CheckPermission(StandardPermission.Configuration.MANAGE_WIDGETS)]` | same as 4.90 | inline `IPermissionService.AuthorizeAsync(StandardPermissionProvider.ManageWidgets)` | same as 4.70 |
+| Area constant | `AreaNames.ADMIN` | same | same | `AreaNames.Admin` |
+| csproj paths | `$(SolutionDir)` | same | relative `..\..\` + `PluginPath=$(MSBuildProjectDirectory)\$(OutDir)` | same as 4.70 |
+| TFM / C# | net9.0 / latest | net9.0 / latest | net8.0 / 12 | net7.0 / 11 |
+| PostgreSQL in Docker | 17 (Npgsql 9.0.1) | 17 (Npgsql 9.0.1) | 16 (Npgsql 8.0.2) | 15 (Npgsql 7.0.0) |
+
+- **4.80** differs from 4.90 in exactly one method: `INopUrlHelper` exists but gains `RouteUrl` only in
+  4.90, so `GetConfigurationPageUrl()` resolves the named route through MVC's own `IUrlHelper`
+  (`IUrlHelperFactory` + `IActionContextAccessor`, both registered by nopCommerce), which is what the
+  4.80 Google Analytics plugin does. `RouteUrl(string)` is an extension method in
+  `Microsoft.AspNetCore.Mvc`, hence that `using`. Everything else (csproj shape, `[CheckPermission]`,
+  `AreaNames.ADMIN`, `RouteProvider`) is the 4.90 code unchanged. Built with the local SDK 9 (the
+  checkout's `global.json` pins 9.0.100 with `latestFeature` roll-forward).
+- **4.70** is a hybrid: it already has `AreaNames.ADMIN`, file-scoped namespaces and the plugin
+  `RouteProvider` (so it starts from 4.90, not 4.60), takes the 4.80 configuration-URL code, but has
+  no `[CheckPermission]` yet (4.80 introduced it) and its own plugins still reference Nop.Web and
+  `Build/ClearPluginAssemblies.proj` relatively, so the controller and csproj follow the 4.60 project.
+  `LangVersion` 12 (net8.0's default); the shared code is C# 11 either way. Built inside
+  `mcr.microsoft.com/dotnet/sdk:8.0`.
+- Like 4.60, the 4.70 **and** 4.80 install wizards install every plugin present in `/Plugins`, so with
+  the folder bind-mounted before the wizard runs the plugin is already installed when Local plugins is
+  first opened (`verify.mjs` reports "plugin was already installed").
+- The storefront tag is byte-identical to 4.90's apart from the default build marker:
+  `data-ds-build="4.80.9"` and `data-ds-build="4.70.5"` (`…+a1b2c3d` with a SHA file).
 
 ## nopCommerce 4.60 notes
 
@@ -184,12 +232,13 @@ What the 4.60 project does differently from the 4.90 reference, all forced by th
 ## Adding a nopCommerce version
 
 1. Add the tag, TFM and `sdkImage` to `build/versions.json`.
-2. Copy `src/DeploySeal.Nop.Widget.490` (4.80) or `src/DeploySeal.Nop.Widget.460` (4.70) to
-   `src/DeploySeal.Nop.Widget.<ver>`, set the TFM and `SupportedVersions`, and fix whatever
-   nopCommerce API moved between those versions (compare that version's
-   `src/Plugins/Nop.Plugin.Widgets.GoogleAnalytics` with the 4.60 and 4.90 ones: area constant,
-   permission check, configuration URL, csproj path style). Do not copy the views: they are linked
-   from `src/DeploySeal.Nop.Widget.Shared`.
+2. Copy the nearest existing project (`src/DeploySeal.Nop.Widget.490` for anything newer than
+   4.90, the matching neighbour for anything in between) to `src/DeploySeal.Nop.Widget.<ver>`, set
+   the TFM and `SupportedVersions`, and fix whatever nopCommerce API moved (compare that version's
+   `src/Plugins/Nop.Plugin.Widgets.GoogleAnalytics` with its neighbours: area constant, permission
+   check, configuration URL, csproj path style; the table above lists what moved so far). Do not copy
+   the views: they are linked from `src/DeploySeal.Nop.Widget.Shared`; check that version's
+   `Nop.Web.Framework/TagHelpers/Admin` still has the same tag helpers and attributes first.
 3. Add `docker/docker-compose.<ver>.yml` (copy 4.60's, change image, port `80<digits>`, volume and
    `name:`), build, `docker compose up -d`, then `node tests/e2e/verify.mjs <ver>`.
 
