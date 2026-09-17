@@ -27,7 +27,13 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '..', '..');
 const modulesDir = process.env.DS_E2E_NODE_MODULES;
 const require = createRequire(modulesDir ? path.join(path.resolve(modulesDir), 'x.js') : import.meta.url);
-const { chromium } = require('playwright');
+function loadPlaywright() {
+  try { return require('playwright'); } catch {}
+  // pnpm layouts hoist nothing: go through @playwright/test's real folder, next to which playwright sits.
+  const testPkg = require.resolve('@playwright/test/package.json');
+  return createRequire(fs.realpathSync(testPkg))('playwright');
+}
+const { chromium } = loadPlaywright();
 
 const BASE = (process.env.DS_NOP_URL || 'http://localhost:8090').replace(/\/$/, '');
 const NOP_VERSION = process.env.DS_NOP_VERSION || '4.90.8';
@@ -102,11 +108,8 @@ async function main() {
       // The wizard POST takes a while (schema + data). It answers with the same page + a restart script,
       // or with .message-error on failure.
       await page.waitForLoadState('load', { timeout: 15 * 60 * 1000 });
-      const err = await page.locator('.message-error').allTextContents();
-      const errText = err.join(' ').trim();
-      if (errText && await page.locator('#installation-form').count() && !/restart/i.test(await page.content())) {
-        throw new Error('install wizard reported: ' + errText);
-      }
+      const errText = (await page.locator('.message-error').allTextContents()).join(' ').trim();
+      if (errText) throw new Error('install wizard reported: ' + errText);
       log('wizard accepted; waiting for nopCommerce to restart');
       await sleep(10_000);
       await waitForServer('nopCommerce installed', isInstalled, 10 * 60 * 1000);
@@ -171,6 +174,8 @@ async function main() {
     assert(shownBuild === NOP_VERSION, `configure page build marker: got ${shownBuild}, want ${NOP_VERSION}`);
     const expectedOrigin = new URL(BASE).origin;
     assert(shownOrigins.includes(expectedOrigin), `configure page origins ${JSON.stringify(shownOrigins)} do not include ${expectedOrigin}`);
+    // nop's sidebar is position:fixed and would be painted over the left column of a full-page shot.
+    await page.addStyleTag({ content: '.main-sidebar{display:none!important} .content-wrapper,.main-header,.main-footer{margin-left:0!important}' });
     await page.screenshot({ path: SCREENSHOT, fullPage: true });
     summary.steps.push(`configured (key, label "${LABEL}", enabled); screenshot ${SCREENSHOT}`);
     summary.configurePreview = preview;

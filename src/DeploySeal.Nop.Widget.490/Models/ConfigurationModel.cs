@@ -26,11 +26,11 @@ public record ConfigurationModel : BaseNopModel
     public bool Enabled_OverrideForStore { get; set; }
 
     [NopResourceDisplayName("Plugins.Widgets.DeploySeal.SiteKey")]
-    public string SiteKey { get; set; }
+    public string? SiteKey { get; set; }
     public bool SiteKey_OverrideForStore { get; set; }
 
     [NopResourceDisplayName("Plugins.Widgets.DeploySeal.EnvironmentLabel")]
-    public string EnvironmentLabel { get; set; }
+    public string? EnvironmentLabel { get; set; }
     public bool EnvironmentLabel_OverrideForStore { get; set; }
 
     [NopResourceDisplayName("Plugins.Widgets.DeploySeal.BuildMarkerSource")]
@@ -39,15 +39,15 @@ public record ConfigurationModel : BaseNopModel
     public IList<SelectListItem> AvailableBuildMarkerSources { get; set; } = new List<SelectListItem>();
 
     [NopResourceDisplayName("Plugins.Widgets.DeploySeal.GitShaFilePath")]
-    public string GitShaFilePath { get; set; }
+    public string? GitShaFilePath { get; set; }
     public bool GitShaFilePath_OverrideForStore { get; set; }
 
     [NopResourceDisplayName("Plugins.Widgets.DeploySeal.ManualBuildMarker")]
-    public string ManualBuildMarker { get; set; }
+    public string? ManualBuildMarker { get; set; }
     public bool ManualBuildMarker_OverrideForStore { get; set; }
 
     [NopResourceDisplayName("Plugins.Widgets.DeploySeal.ScriptHost")]
-    public string ScriptHost { get; set; }
+    public string? ScriptHost { get; set; }
     public bool ScriptHost_OverrideForStore { get; set; }
 
     [NopResourceDisplayName("Plugins.Widgets.DeploySeal.RenderOnAdmin")]

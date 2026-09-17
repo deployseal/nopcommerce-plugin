@@ -11,12 +11,16 @@
 services:
   db:
     image: postgres:17-alpine
+    # Deliberately NO "POSTGRES_DB: nop": nopCommerce must create the database itself
+    # ("Create database if it doesn't exist" in the wizard) because that is the only path on
+    # which it runs CREATE EXTENSION citext / pgcrypto; a pre-created database fails the
+    # install with `type "citext" does not exist`.
     environment:
       POSTGRES_USER: nop
       POSTGRES_PASSWORD: nop
-      POSTGRES_DB: nop
+      POSTGRES_DB: postgres
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U nop -d nop"]
+      test: ["CMD-SHELL", "pg_isready -U nop -d postgres"]
       interval: 5s
       timeout: 3s
       retries: 20
