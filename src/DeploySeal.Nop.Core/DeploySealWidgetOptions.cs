@@ -31,6 +31,19 @@ public class DeploySealWidgetOptions
     /// <summary>Also load the widget inside the admin area. Off by default.</summary>
     public bool RenderOnAdmin { get; set; }
 
+    /// <summary>
+    /// Organisation API key with the Write scope (§6), used server to server for the inventory
+    /// only. A secret: the Configure page never renders it back, and leaving the box empty on
+    /// Save keeps the stored value.
+    /// </summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>Advanced. The DeploySeal API host; defaults to <see cref="DeploySealContract.DefaultApiBase"/>.</summary>
+    public string? ApiBase { get; set; } = DeploySealContract.DefaultApiBase;
+
+    /// <summary>Post the plugin inventory on the schedule (every 6 h by default). Off by default; "Send now" works regardless.</summary>
+    public bool SendInventory { get; set; }
+
     /// <summary>Typed view of <see cref="BuildMarkerSourceId"/>; unknown ids read as the default.</summary>
     public BuildMarkerSource BuildMarkerSource
     {

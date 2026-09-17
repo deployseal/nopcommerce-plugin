@@ -1,4 +1,5 @@
 using DeploySeal.Nop.Core;
+using Nop.Core.Domain.ScheduleTasks;
 using Nop.Core;
 using Nop.Core.Domain.Cms;
 using Nop.Plugin.Widgets.DeploySeal.Components;
@@ -6,6 +7,7 @@ using Nop.Services.Cms;
 using Nop.Services.Configuration;
 using Nop.Services.Localization;
 using Nop.Services.Plugins;
+using Nop.Services.ScheduleTasks;
 using Nop.Services.Stores;
 using Nop.Web.Framework.Infrastructure;
 
@@ -18,6 +20,7 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
 {
     private readonly DeploySealSettings _deploySealSettings;
     private readonly ILocalizationService _localizationService;
+    private readonly IScheduleTaskService _scheduleTaskService;
     private readonly ISettingService _settingService;
     private readonly IStoreService _storeService;
     private readonly IWebHelper _webHelper;
@@ -25,6 +28,7 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
 
     public DeploySealPlugin(DeploySealSettings deploySealSettings,
         ILocalizationService localizationService,
+        IScheduleTaskService scheduleTaskService,
         ISettingService settingService,
         IStoreService storeService,
         IWebHelper webHelper,
@@ -32,6 +36,7 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
     {
         _deploySealSettings = deploySealSettings;
         _localizationService = localizationService;
+        _scheduleTaskService = scheduleTaskService;
         _settingService = settingService;
         _storeService = storeService;
         _webHelper = webHelper;
@@ -86,8 +91,13 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
             ManualBuildMarker = string.Empty,
             ScriptHost = DeploySealContract.DefaultScriptHost,
             RenderOnAdmin = false,
+            ApiKey = string.Empty,
+            ApiBase = DeploySealContract.DefaultApiBase,
+            SendInventory = false,
         };
         await _settingService.SaveSettingAsync(settings);
+
+        await EnsureInventoryTaskAsync();
 
         if (!_widgetSettings.ActiveWidgetSystemNames.Contains(DeploySealDefaults.SystemName))
         {
@@ -129,6 +139,27 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
             [$"{p}.RenderOnAdmin"] = "Also load in the admin area",
             [$"{p}.RenderOnAdmin.Hint"] = "Off by default. Turn on only if testers need to pin issues inside the administration area too.",
 
+            [$"{p}.ApiKey"] = "DeploySeal API key",
+            [$"{p}.ApiKey.Hint"] = "An organisation API key with the Write scope (DeploySeal → Settings → Integrations → API keys). Only used to send the plugin inventory, server to server. Leave empty to keep the stored key.",
+            [$"{p}.ApiKey.Stored"] = "An API key is stored. Leave the box empty to keep it, or tick the box to remove it.",
+            [$"{p}.ApiKey.Clear"] = "Remove the stored API key",
+            [$"{p}.ApiBase"] = "API base (advanced)",
+            [$"{p}.ApiBase.Hint"] = "The DeploySeal API host the inventory is posted to. Leave at https://api.deployseal.com unless you self-host DeploySeal.",
+            [$"{p}.SendInventory"] = "Send inventory on a schedule",
+            [$"{p}.SendInventory.Hint"] = "Post the list of installed plugins and their versions to DeploySeal every 6 hours (Administration → System → Schedule tasks, \"Send platform inventory to DeploySeal\"), so the readiness report can print exactly which plugins were installed when a campaign was tested. Needs the site key and the API key.",
+
+            [$"{p}.Inventory.Title"] = "Platform inventory",
+            [$"{p}.Inventory.Intro"] = "DeploySeal can record which plugins, at which versions, were installed when a release was tested — release evidence only the platform itself can provide. What is sent: every plugin nopCommerce knows about (system name, display name, version, installed or not), the nopCommerce version and the build marker above. Nothing else.",
+            [$"{p}.Inventory.Count"] = "Plugins that will be reported",
+            [$"{p}.Inventory.Installed"] = "installed",
+            [$"{p}.Inventory.Fingerprint"] = "Fingerprint",
+            [$"{p}.Inventory.Endpoint"] = "Sent to",
+            [$"{p}.Inventory.NotReady"] = "Enter the site key and a DeploySeal API key (Write scope) above and save before sending.",
+            [$"{p}.Inventory.SendNow"] = "Send inventory now",
+            [$"{p}.Inventory.Schedule"] = "The scheduled task sends the same snapshot every 6 hours while \"Send inventory on a schedule\" is on. Resending an unchanged list does not grow the record: the API answers 200 with the snapshot it already holds.",
+            [$"{p}.Inventory.Sent"] = "Inventory sent: HTTP {0} — {1} plugins recorded as snapshot {2} ({3}).",
+            [$"{p}.Inventory.Failed"] = "Inventory not sent: {0}",
+
             [$"{p}.Facts.Title"] = "What this store will send",
             [$"{p}.Facts.Intro"] = "Compare these values with the environment in DeploySeal. Origins must match exactly; the build marker must be copied verbatim into the campaign's release identifier.",
             [$"{p}.Facts.WidgetInactive"] = "This widget is installed but not active in nopCommerce. Enable it under Configuration → Widgets, or nothing will render.",
@@ -156,8 +187,36 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
         await base.InstallAsync();
     }
 
+    /// <summary>Plugin upgrades: settings and locale strings added since the installed version, and the inventory task.</summary>
+    public override async Task UpdateAsync(string currentVersion, string targetVersion)
+    {
+        await EnsureInventoryTaskAsync();
+        await base.UpdateAsync(currentVersion, targetVersion);
+    }
+
+    /// <summary>The scheduled inventory send, registered the way nopCommerce's own plugins register theirs.</summary>
+    private async Task EnsureInventoryTaskAsync()
+    {
+        if (await _scheduleTaskService.GetTaskByTypeAsync(DeploySealDefaults.InventoryTaskType) != null)
+            return;
+
+        await _scheduleTaskService.InsertTaskAsync(new ScheduleTask
+        {
+            Enabled = true,
+            LastEnabledUtc = DateTime.UtcNow,
+            StopOnError = false,
+            Seconds = DeploySealContract.InventorySendPeriodHours * 60 * 60,
+            Name = DeploySealDefaults.InventoryTaskName,
+            Type = DeploySealDefaults.InventoryTaskType,
+        });
+    }
+
     public override async Task UninstallAsync()
     {
+        var task = await _scheduleTaskService.GetTaskByTypeAsync(DeploySealDefaults.InventoryTaskType);
+        if (task != null)
+            await _scheduleTaskService.DeleteTaskAsync(task);
+
         if (_widgetSettings.ActiveWidgetSystemNames.Contains(DeploySealDefaults.SystemName))
         {
             _widgetSettings.ActiveWidgetSystemNames.Remove(DeploySealDefaults.SystemName);

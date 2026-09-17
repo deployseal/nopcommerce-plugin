@@ -1,4 +1,5 @@
 using DeploySeal.Nop.Core;
+using DeploySeal.Nop.Core.Inventory;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Nop.Core;
@@ -22,6 +23,7 @@ namespace Nop.Plugin.Widgets.DeploySeal.Controllers;
 public class WidgetsDeploySealController : BasePluginController
 {
     private readonly IBuildMarkerService _buildMarkerService;
+    private readonly IInventoryService _inventoryService;
     private readonly ILocalizationService _localizationService;
     private readonly INotificationService _notificationService;
     private readonly ISettingService _settingService;
@@ -31,6 +33,7 @@ public class WidgetsDeploySealController : BasePluginController
 
     public WidgetsDeploySealController(
         IBuildMarkerService buildMarkerService,
+        IInventoryService inventoryService,
         ILocalizationService localizationService,
         INotificationService notificationService,
         ISettingService settingService,
@@ -39,6 +42,7 @@ public class WidgetsDeploySealController : BasePluginController
         WidgetSettings widgetSettings)
     {
         _buildMarkerService = buildMarkerService;
+        _inventoryService = inventoryService;
         _localizationService = localizationService;
         _notificationService = notificationService;
         _settingService = settingService;
@@ -64,6 +68,11 @@ public class WidgetsDeploySealController : BasePluginController
             ManualBuildMarker = settings.ManualBuildMarker,
             ScriptHost = settings.ScriptHost,
             RenderOnAdmin = settings.RenderOnAdmin,
+            // The API key is write-only: the page shows whether one is stored, never the value.
+            ApiKey = null,
+            ApiKeyIsSet = !string.IsNullOrWhiteSpace(settings.ApiKey),
+            ApiBase = settings.ApiBase,
+            SendInventory = settings.SendInventory,
         };
 
         if (storeScope > 0)
@@ -76,6 +85,9 @@ public class WidgetsDeploySealController : BasePluginController
             model.ManualBuildMarker_OverrideForStore = await _settingService.SettingExistsAsync(settings, x => x.ManualBuildMarker, storeScope);
             model.ScriptHost_OverrideForStore = await _settingService.SettingExistsAsync(settings, x => x.ScriptHost, storeScope);
             model.RenderOnAdmin_OverrideForStore = await _settingService.SettingExistsAsync(settings, x => x.RenderOnAdmin, storeScope);
+            model.ApiKey_OverrideForStore = await _settingService.SettingExistsAsync(settings, x => x.ApiKey, storeScope);
+            model.ApiBase_OverrideForStore = await _settingService.SettingExistsAsync(settings, x => x.ApiBase, storeScope);
+            model.SendInventory_OverrideForStore = await _settingService.SettingExistsAsync(settings, x => x.SendInventory, storeScope);
         }
 
         await PrepareInstallerFactsAsync(model, settings, storeScope);
@@ -111,6 +123,15 @@ public class WidgetsDeploySealController : BasePluginController
             ? DeploySealContract.DefaultScriptHost
             : model.ScriptHost.Trim().TrimEnd('/');
         settings.RenderOnAdmin = model.RenderOnAdmin;
+        // Secret: an empty box keeps the stored key; the tick box removes it; anything else replaces it.
+        if (model.ClearApiKey)
+            settings.ApiKey = string.Empty;
+        else if (!string.IsNullOrWhiteSpace(model.ApiKey))
+            settings.ApiKey = model.ApiKey.Trim();
+        settings.ApiBase = string.IsNullOrWhiteSpace(model.ApiBase)
+            ? DeploySealContract.DefaultApiBase
+            : model.ApiBase.Trim().TrimEnd('/');
+        settings.SendInventory = model.SendInventory;
 
         await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.Enabled, model.Enabled_OverrideForStore, storeScope, false);
         await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.SiteKey, model.SiteKey_OverrideForStore, storeScope, false);
@@ -120,12 +141,48 @@ public class WidgetsDeploySealController : BasePluginController
         await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.ManualBuildMarker, model.ManualBuildMarker_OverrideForStore, storeScope, false);
         await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.ScriptHost, model.ScriptHost_OverrideForStore, storeScope, false);
         await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.RenderOnAdmin, model.RenderOnAdmin_OverrideForStore, storeScope, false);
+        await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.ApiKey, model.ApiKey_OverrideForStore, storeScope, false);
+        await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.ApiBase, model.ApiBase_OverrideForStore, storeScope, false);
+        await _settingService.SaveSettingOverridablePerStoreAsync(settings, x => x.SendInventory, model.SendInventory_OverrideForStore, storeScope, false);
 
         await _settingService.ClearCacheAsync();
 
         _notificationService.SuccessNotification(await _localizationService.GetResourceAsync("Admin.Plugins.Saved"));
 
         return await Configure();
+    }
+
+
+    /// <summary>"Send inventory now": one send for the active store scope, result as a notification.</summary>
+    [HttpPost]
+    [CheckPermission(StandardPermission.Configuration.MANAGE_WIDGETS)]
+    public async Task<IActionResult> SendInventory()
+    {
+        var storeScope = await _storeContext.GetActiveStoreScopeConfigurationAsync();
+        var settings = await _settingService.LoadSettingAsync<DeploySealSettings>(storeScope);
+
+        await NotifyInventoryResultAsync(await _inventoryService.SendAsync(settings));
+
+        return RedirectToAction("Configure");
+    }
+
+    private async Task NotifyInventoryResultAsync(InventorySendResult result)
+    {
+        var p = DeploySealDefaults.LocalePrefix;
+        if (result.Ok)
+        {
+            var message = string.Format(
+                await _localizationService.GetResourceAsync($"{p}.Inventory.Sent"),
+                result.StatusCode,
+                result.ItemCount?.ToString() ?? "?",
+                result.SnapshotId ?? "?",
+                result.Created ? "new observation" : "already on record");
+            _notificationService.SuccessNotification(message);
+        }
+        else
+        {
+            _notificationService.ErrorNotification(string.Format(await _localizationService.GetResourceAsync($"{p}.Inventory.Failed"), result.Error));
+        }
     }
 
     /// <summary>Contract §7: origins, key, exact marker and its source, declared label, links.</summary>
@@ -179,5 +236,13 @@ public class WidgetsDeploySealController : BasePluginController
         var key = settings.SiteKey?.Trim() ?? string.Empty;
         if (key.Length > 0 && !(key.StartsWith("ls_", StringComparison.Ordinal) || key.StartsWith("ds_", StringComparison.Ordinal)))
             model.SiteKeyWarning = await _localizationService.GetResourceAsync($"{DeploySealDefaults.LocalePrefix}.SiteKey.FormatWarning");
+
+        // Inventory (contract §6): what the next send would carry and where it goes.
+        var snapshot = await _inventoryService.CollectAsync(settings);
+        model.InventoryItemCount = snapshot.Items.Count;
+        model.InventoryInstalledCount = snapshot.Items.Count(i => i.Enabled);
+        model.InventorySha256 = snapshot.Sha256;
+        model.InventoryEndpoint = InventoryClient.EndpointUrl(settings.ApiBase, settings.SiteKey);
+        model.CanSendInventory = key.Length > 0 && !string.IsNullOrWhiteSpace(settings.ApiKey);
     }
 }

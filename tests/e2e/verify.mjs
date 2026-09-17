@@ -6,7 +6,12 @@
 //   4. configures it (fake site key, label "staging"), saves, screenshots the configure page,
 //   5. optionally writes a SHA file into the container and checks the "+sha" marker,
 //   6. fetches the storefront home page and asserts the EXACT contract tag sits in <head>,
-//      and that it is absent on /Admin.
+//      and that it is absent on /Admin,
+//   7. starts a stub DeploySeal API on the host, points the plugin's "API base" at it through
+//      host.docker.internal, presses "Send inventory now" and asserts the request shape
+//      (POST /api/v1/sites/{key}/inventory, Bearer key, JSON body with platform/version/build/
+//      capturedAt/items ≥ 1, canonical order), the 201/200 answers surfacing on the page, and
+//      the scheduled task being registered.
 //
 // Usage (Playwright is resolved from DS_E2E_NODE_MODULES when this repo has no node_modules):
 //   DS_E2E_NODE_MODULES=<path to a node_modules with playwright> node tests/e2e/verify.mjs [4.60|4.70|4.80|4.90]
@@ -19,6 +24,8 @@
 //                     set to "" to skip that scenario)
 //   DS_ADMIN_EMAIL / DS_ADMIN_PASSWORD   admin credentials (created by the wizard if needed)
 //   DS_SCREENSHOT     output PNG          (default artifacts/configure-<major.minor>.png)
+//   DS_STUB_PORT      host port of the stub API the container posts the inventory to (default 180<minor>, e.g. 18090)
+//   DS_STUB_HOST      how the container reaches the host (default host.docker.internal; Docker Desktop resolves it)
 //
 // nopCommerce 4.60, 4.70, 4.80 and 4.90 share every selector this script touches (install wizard
 // ids, the storefront login button, the Local plugins grid and its install-plugin-link-<SystemName> /
@@ -28,6 +35,7 @@
 
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
+import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +68,10 @@ const ADMIN_PASSWORD = process.env.DS_ADMIN_PASSWORD || 'Admin!Pass123';
 const SCREENSHOT = process.env.DS_SCREENSHOT || path.join(repoRoot, 'artifacts', `configure-${MAJOR_MINOR}.png`);
 
 const SITE_KEY = 'ls_test0000000000000000000000000000000';
+const API_KEY = 'ds_test_e2e0000000000000000000000000000';
+const STUB_PORT = Number(process.env.DS_STUB_PORT || ('180' + MAJOR_MINOR.split('.')[1]));
+const STUB_HOST = process.env.DS_STUB_HOST || 'host.docker.internal';
+const STUB_BASE = `http://${STUB_HOST}:${STUB_PORT}`;
 const LABEL = 'staging';
 const SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const SHA_FILE = 'App_Data/build-sha.txt';
@@ -93,6 +105,38 @@ const isUp = () => true;
 async function fetchHtml(context, url) {
   const res = await context.request.get(url, { maxRedirects: 5 });
   return { status: res.status(), url: res.url(), html: await res.text() };
+}
+
+// A stand-in for api.deployseal.com: records every request and answers like the real endpoint
+// (201 for a new item set, 200 with the same id when the identical set is posted again).
+function startStub() {
+  const requests = [];
+  const seen = new Map();
+  const server = http.createServer((req, res) => {
+    let raw = '';
+    req.on('data', (c) => { raw += c; });
+    req.on('end', () => {
+      let body = null;
+      try { body = JSON.parse(raw); } catch {}
+      requests.push({ method: req.method, url: req.url, headers: req.headers, raw, body });
+      const items = body && Array.isArray(body.items) ? body.items : null;
+      if (req.method !== 'POST' || !/^\/api\/v1\/sites\/[^/]+\/inventory$/.test(req.url) || !items) {
+        res.writeHead(400, { 'content-type': 'application/problem+json' });
+        res.end(JSON.stringify({ status: 400, title: 'Invalid inventory snapshot.', detail: 'stub: bad request', errors: { items: ['stub'] } }));
+        return;
+      }
+      const fingerprint = JSON.stringify(items.map((i) => [i.systemName, i.name, i.version, i.enabled]));
+      const existing = seen.get(fingerprint);
+      const id = existing || `stub-${seen.size + 1}`;
+      if (!existing) seen.set(fingerprint, id);
+      res.writeHead(existing ? 200 : 201, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ id, capturedAt: body.capturedAt, itemCount: items.length }));
+    });
+  });
+  return new Promise((resolve, reject) => {
+    server.on('error', reject);
+    server.listen(STUB_PORT, '0.0.0.0', () => resolve({ server, requests, close: () => new Promise((r) => server.close(r)) }));
+  });
 }
 
 async function main() {
@@ -236,6 +280,79 @@ async function main() {
       await page.fill('#GitShaFilePath', '');
       await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('button[name="save"]')]);
       summary.steps.push('git SHA file scenario ok (version+sha7 emitted)');
+    }
+
+    // 7. Inventory (contract §6) against a stub API on the host ------------------------------------
+    const stub = await startStub();
+    try {
+      log(`stub DeploySeal API listening on ${STUB_BASE} (host port ${STUB_PORT})`);
+      await page.goto(BASE + '/Admin/WidgetsDeploySeal/Configure');
+      await page.waitForSelector('#ApiKey');
+      assert(await page.locator('#deployseal-inventory-notready').count() === 1, 'without an API key the inventory card must say it is not ready');
+      assert(await page.locator('button[name="send-inventory"]').isDisabled(), 'without an API key "Send inventory now" must be disabled');
+      await page.fill('#ApiKey', API_KEY);
+      await page.fill('#ApiBase', STUB_BASE);
+      await page.check('#SendInventory');
+      await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('button[name="save"]')]);
+      await page.waitForSelector('#deployseal-inventory-endpoint');
+      // The key is a secret: never rendered back, only "stored" plus the mask.
+      assert((await page.inputValue('#ApiKey')) === '', 'the API key box must not echo the stored key');
+      assert(await page.locator('#deployseal-apikey-stored').count() === 1, 'the page must say a key is stored');
+      const endpoint = (await page.locator('#deployseal-inventory-endpoint').innerText()).trim();
+      assert(endpoint === `${STUB_BASE}/api/v1/sites/${SITE_KEY}/inventory`, `inventory endpoint shown: ${endpoint}`);
+      const shownCount = Number((await page.locator('#deployseal-inventory-count').innerText()).trim());
+      assert(shownCount >= 1, `inventory count shown: ${shownCount}`);
+      assert(!(await page.locator('button[name="send-inventory"]').isDisabled()), '"Send inventory now" must be enabled once key + site key are set');
+      // Take the screenshot again so it shows the inventory settings and card.
+      await page.addStyleTag({ content: '.main-sidebar{display:none!important} .content-wrapper,.main-header,.main-footer{margin-left:0!important}' });
+      await page.screenshot({ path: SCREENSHOT, fullPage: true });
+
+      await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('button[name="send-inventory"]')]);
+      const alerts1 = (await page.locator('.alert').allTextContents()).join(' | ');
+      assert(stub.requests.length === 1, `stub expected exactly one request after the first send, got ${stub.requests.length} (page said: ${alerts1})`);
+      const r = stub.requests[0];
+      assert(r.method === 'POST', 'method: ' + r.method);
+      assert(r.url === `/api/v1/sites/${SITE_KEY}/inventory`, 'path: ' + r.url);
+      assert(r.headers.authorization === `Bearer ${API_KEY}`, 'authorization header: ' + r.headers.authorization);
+      assert(/^application\/json/.test(r.headers['content-type'] || ''), 'content-type: ' + r.headers['content-type']);
+      assert(r.body && typeof r.body === 'object', 'body is JSON');
+      assert(Object.keys(r.body).join(',') === 'platform,platformVersion,buildMarker,capturedAt,items', 'body keys: ' + Object.keys(r.body).join(','));
+      assert(r.body.platform === 'nopcommerce', 'platform: ' + r.body.platform);
+      assert(r.body.platformVersion === NOP_VERSION, `platformVersion: ${r.body.platformVersion} (want ${NOP_VERSION})`);
+      assert(r.body.buildMarker === NOP_VERSION, `buildMarker: ${r.body.buildMarker} (want ${NOP_VERSION}; no SHA file is configured now)`);
+      const capturedAgeMs = Date.now() - Date.parse(r.body.capturedAt);
+      assert(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(r.body.capturedAt) && capturedAgeMs > -60_000 && capturedAgeMs < 10 * 60_000, 'capturedAt: ' + r.body.capturedAt);
+      assert(Array.isArray(r.body.items) && r.body.items.length >= 1, 'items: ' + JSON.stringify(r.body.items).slice(0, 200));
+      assert(r.body.items.length === shownCount, `items sent (${r.body.items.length}) must match the count shown (${shownCount})`);
+      for (const item of r.body.items) {
+        assert(Object.keys(item).join(',') === 'systemName,name,version,enabled', 'item keys: ' + Object.keys(item).join(','));
+        assert(typeof item.systemName === 'string' && item.systemName.length > 0 && item.systemName.length <= 128, 'systemName: ' + item.systemName);
+        assert(typeof item.name === 'string' && item.name.length > 0 && item.name.length <= 200, 'name: ' + item.name);
+        assert(typeof item.version === 'string' && item.version.length > 0 && item.version.length <= 32, 'version: ' + item.version);
+        assert(typeof item.enabled === 'boolean', 'enabled: ' + item.enabled);
+      }
+      const names = r.body.items.map((i) => i.systemName);
+      assert(names.slice().sort().join('\n') === names.join('\n'), 'items must be sorted by systemName (ordinal)');
+      assert(new Set(names).size === names.length, 'systemNames must be unique');
+      const self = r.body.items.find((i) => i.systemName === 'Widgets.DeploySeal');
+      assert(self && self.enabled === true && self.version === '1.1.0', 'the plugin must report itself as installed: ' + JSON.stringify(self));
+      assert(/HTTP 201/.test(alerts1) && new RegExp(`${r.body.items.length} plugins`).test(alerts1), 'the page must show the 201 and the count: ' + alerts1);
+      log(`inventory sent: ${r.body.items.length} plugins (${names.filter((n) => r.body.items.find((i) => i.systemName === n).enabled).length} installed), 201 shown`);
+
+      // The same set again: the API answers 200 with the snapshot it already holds, and the page says so.
+      await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('button[name="send-inventory"]')]);
+      const alerts2 = (await page.locator('.alert').allTextContents()).join(' | ');
+      assert(stub.requests.length === 2, 'second send must post once more');
+      assert(/HTTP 200/.test(alerts2) && /already on record/.test(alerts2), 'the page must show the 200 as already on record: ' + alerts2);
+
+      // The scheduled task is registered (Administration → System → Schedule tasks).
+      await page.goto(BASE + '/Admin/ScheduleTask/List');
+      await page.waitForSelector('text=Send platform inventory to DeploySeal', { timeout: 60_000 });
+
+      summary.steps.push(`inventory: ${r.body.items.length} plugins posted to ${STUB_BASE}${r.url} with the bearer key (201, then 200 on resend); schedule task registered`);
+      summary.inventoryRequest = { method: r.method, url: r.url, authorization: 'Bearer ' + API_KEY.slice(0, 12) + '…', platform: r.body.platform, platformVersion: r.body.platformVersion, buildMarker: r.body.buildMarker, capturedAt: r.body.capturedAt, itemCount: r.body.items.length, first: r.body.items[0] };
+    } finally {
+      await stub.close();
     }
 
     console.log('\nVERIFIED\n' + JSON.stringify(summary, null, 2));

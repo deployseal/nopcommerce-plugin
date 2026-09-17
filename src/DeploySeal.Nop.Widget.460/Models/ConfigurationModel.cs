@@ -54,6 +54,45 @@ public record ConfigurationModel : BaseNopModel
     public bool RenderOnAdmin { get; set; }
     public bool RenderOnAdmin_OverrideForStore { get; set; }
 
+    /// <summary>Write-only: never populated from the stored value. Empty on Save = keep the stored key.</summary>
+    [NopResourceDisplayName("Plugins.Widgets.DeploySeal.ApiKey")]
+    public string? ApiKey { get; set; }
+    public bool ApiKey_OverrideForStore { get; set; }
+
+    /// <summary>A key is stored for this scope (the page shows a mask and the "remove" box).</summary>
+    public bool ApiKeyIsSet { get; set; }
+
+    /// <summary>Tick to delete the stored key on Save.</summary>
+    [NopResourceDisplayName("Plugins.Widgets.DeploySeal.ApiKey.Clear")]
+    public bool ClearApiKey { get; set; }
+
+    [NopResourceDisplayName("Plugins.Widgets.DeploySeal.ApiBase")]
+    public string? ApiBase { get; set; }
+    public bool ApiBase_OverrideForStore { get; set; }
+
+    [NopResourceDisplayName("Plugins.Widgets.DeploySeal.SendInventory")]
+    public bool SendInventory { get; set; }
+    public bool SendInventory_OverrideForStore { get; set; }
+
+    #endregion
+
+    #region Inventory facts (contract §6)
+
+    /// <summary>How many plugins the next send would report (installed and not installed).</summary>
+    public int InventoryItemCount { get; set; }
+
+    /// <summary>How many of those are installed.</summary>
+    public int InventoryInstalledCount { get; set; }
+
+    /// <summary>Fingerprint of the current canonical list, for comparison with the report.</summary>
+    public string InventorySha256 { get; set; } = string.Empty;
+
+    /// <summary>Exactly where the snapshot will be posted.</summary>
+    public string InventoryEndpoint { get; set; } = string.Empty;
+
+    /// <summary>Site key and API key are both present, so "Send now" can work.</summary>
+    public bool CanSendInventory { get; set; }
+
     #endregion
 
     #region What the installer must see (contract §7)

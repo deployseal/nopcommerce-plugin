@@ -22,7 +22,7 @@
     <TargetFramework>net9.0</TargetFramework>
     <AssemblyName>Nop.Plugin.Widgets.DeploySeal</AssemblyName>
     <RootNamespace>Nop.Plugin.Widgets.DeploySeal</RootNamespace>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Company>DeploySeal</Company>
     <Authors>DeploySeal</Authors>
     <Product>DeploySeal widget for nopCommerce</Product>

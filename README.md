@@ -11,14 +11,18 @@ DeploySeal install paths and obeys the DeploySeal install contract to the byte: 
 
 placed in `<head>`, once, only on the public storefront (never in `/Admin` unless you opt in).
 
+With an organisation API key it also reports the **platform inventory** — every plugin nopCommerce
+knows about, with its version and whether it is installed — so the readiness report can print
+exactly which plugins were installed when a release was tested (install contract §6).
+
 ## Supported nopCommerce versions
 
 | nopCommerce | Tag             | .NET    | Plugin project                  | Status                     |
 |-------------|-----------------|---------|---------------------------------|----------------------------|
-| 4.60        | release-4.60.6  | net7.0  | `src/DeploySeal.Nop.Widget.460` | **verified end to end** (built in the .NET 7 SDK container) |
-| 4.90        | release-4.90.8  | net9.0  | `src/DeploySeal.Nop.Widget.490` | **reference build, verified end to end** |
-| 4.80        | release-4.80.9  | net9.0  | `src/DeploySeal.Nop.Widget.480` | **verified end to end** (built with the local SDK 9) |
-| 4.70        | release-4.70.5  | net8.0  | `src/DeploySeal.Nop.Widget.470` | **verified end to end** (built in the .NET 8 SDK container) |
+| 4.60        | release-4.60.6  | net7.0  | `src/DeploySeal.Nop.Widget.460` | **verified end to end incl. inventory** (built in the .NET 7 SDK container) |
+| 4.90        | release-4.90.8  | net9.0  | `src/DeploySeal.Nop.Widget.490` | **reference build, verified end to end incl. inventory** |
+| 4.80        | release-4.80.9  | net9.0  | `src/DeploySeal.Nop.Widget.480` | **verified end to end incl. inventory** (built with the local SDK 9) |
+| 4.70        | release-4.70.5  | net8.0  | `src/DeploySeal.Nop.Widget.470` | **verified end to end incl. inventory** (built in the .NET 8 SDK container) |
 
 `build/versions.json` is the single list of versions the build knows about (tag, TFM and the SDK
 container image used when that SDK is not installed locally).
@@ -54,30 +58,67 @@ All settings are overridable per store (multi-store: one key per environment per
 | Manual build marker | empty | Used by the manual source. One token, no whitespace, ≤ 64. |
 | Script host (advanced) | `https://cdn.deployseal.com` | The only supported host; leave it. |
 | Also load in the admin area | off | The admin layout has no head zone, so this uses the first admin body zone. |
+| DeploySeal API key | empty | An organisation API key with the **Write** scope (DeploySeal → Settings → Integrations → API keys). A secret: the page never shows it again; leaving the box empty on Save keeps it, the "Remove the stored API key" box deletes it. Only used for the inventory. |
+| API base (advanced) | `https://api.deployseal.com` | The API host the inventory is posted to. Self-hosters change it; `verify.mjs` points it at a stub. |
+| Send inventory on a schedule | off | Post the inventory every 6 hours through the scheduled task. "Send inventory now" works without it. |
 
 The build marker is resolved once per request. Whatever it resolves to is printed on the Configure
 page, verbatim, so it can be copied into a campaign's release identifier (`a1b2c3d` does **not**
 confirm `4.90.8+a1b2c3d`; prefix matching runs from the start of the string).
+
+## Platform inventory
+
+What is sent, to `POST {API base}/api/v1/sites/{site key}/inventory` with `Authorization: Bearer <API key>`:
+
+```json
+{ "platform": "nopcommerce", "platformVersion": "4.90.8", "buildMarker": "4.90.8+a1b2c3d",
+  "capturedAt": "2026-09-17T06:00:00.000Z",
+  "items": [ { "systemName": "Payments.PayPalCommerce", "name": "PayPal Commerce", "version": "4.90.1", "enabled": true }, … ] }
+```
+
+- `items` is every plugin descriptor nopCommerce loads (`IPluginService.GetPluginDescriptorsAsync(LoadPluginsMode.All)`):
+  installed **and** not installed, so a disabled plugin is on the record as `enabled: false`. Sorted by
+  system name, de-duplicated, capped at 500 items and the contract's field lengths (128 / 200 / 32).
+  Nothing else leaves the store: no settings, no customers, no orders.
+- `platformVersion` is `NopVersion.FULL_VERSION`; `buildMarker` is the same marker the storefront tag
+  carries (omitted as `null` when none is emitted).
+- **When:** the **Send inventory now** button on the Configure page (result shown on the page: `HTTP 201`
+  with the count and snapshot id, `HTTP 200 … already on record` when nothing changed, or the API's error),
+  and the scheduled task **Send platform inventory to DeploySeal** (Administration → System → Schedule
+  tasks; every 6 hours; only stores whose settings have *Send inventory on a schedule* on plus a site key
+  and an API key; stores sharing one key are sent once). Resending an unchanged list does not grow the
+  record — the API is idempotent on (environment, item set, capturedAt).
+- **Which key:** an organisation API key with the **Write** scope. `Read` alone is refused (403); a key of
+  another organisation, or a site key that is not one of that organisation's environments, is a plain 404.
+- The call is server to server with a 15 s timeout, one retry on a transport failure, and never throws
+  into the page or the task runner; failures are logged under Administration → System → Log.
+- The Configure page shows how many plugins the next send would carry, the canonical fingerprint
+  (`sha256:…`, the same value the readiness report prints) and the exact URL.
 
 ## Repository layout
 
 ```
 src/DeploySeal.Nop.Core/          pure logic, no nopCommerce references, multi-targets net7.0;net9.0, C# 11:
                                   settings POCO, EnvironmentLabel (slug + guess), OriginFormatter,
-                                  GitSha, BuildMarkerResolver, SnippetBuilder, contract constants
+                                  GitSha, BuildMarkerResolver, SnippetBuilder, contract constants,
+                                  Inventory/ (InventoryItem, InventorySnapshotBuilder = canonical JSON +
+                                  sha256 + request body, InventoryClient = the HTTP send)
 src/DeploySeal.Nop.Widget.Shared/ what is byte-identical across nopCommerce versions and linked into every
                                   plugin project: the three Razor views (Configure, PublicInfo, _ViewImports)
                                   and logo.png
 src/DeploySeal.Nop.Widget.490/    the 4.90 plugin: plugin class, settings, admin controller, view component,
-                                  route + DI startup, plugin.json
+                                  route + DI startup, plugin.json, Services/InventoryService (plugin list →
+                                  snapshot → send) + InventorySyncTask (the schedule task)
 src/DeploySeal.Nop.Widget.480/    the 4.80 plugin (net9.0): the 4.90 files with one API difference (see
                                   "nopCommerce 4.80 and 4.70 notes")
 src/DeploySeal.Nop.Widget.470/    the 4.70 plugin (net8.0): the 4.90 files with the 4.80 URL difference, the
                                   4.60 permission check and the 4.60 csproj path style
 src/DeploySeal.Nop.Widget.460/    the 4.60 plugin (net7.0): same files minus the RouteProvider, with the
                                   4.60 API spellings (see "nopCommerce 4.60 notes")
-tests/DeploySeal.Nop.Core.Tests/  xunit tests for Core (slug, origins, marker composition/limits, byte-exact tag)
-tests/e2e/verify.mjs              Playwright script that drives a real nopCommerce in Docker end to end
+tests/DeploySeal.Nop.Core.Tests/  xunit tests for Core (slug, origins, marker composition/limits, byte-exact tag,
+                                  inventory canonical form / limits / request body / client behaviour)
+tests/e2e/verify.mjs              Playwright script that drives a real nopCommerce in Docker end to end, with a
+                                  stub DeploySeal API on the host for the inventory request shape
 build/build.ps1                   clone nop tag → copy project in → build (locally or in the SDK container) → verify folder → zip
 build/versions.json               nop version → tag / TFM / SDK container image
 build/gen-logo.py                 regenerates logo.png from the product's seal outlines (Pillow only)
@@ -146,7 +187,9 @@ docker run --rm -v "${PWD}:/work" -v deployseal-nuget:/root/.nuget/packages -w /
 ```
 
 End to end (real nopCommerce in Docker, PostgreSQL, install wizard, plugin install, configure,
-storefront/admin assertions, SHA-file marker, screenshot to `artifacts/configure-<ver>.png`):
+storefront/admin assertions, SHA-file marker, inventory request shape against a stub API on the host
+(`DS_STUB_PORT`, default `180<minor>`; the container reaches it as `host.docker.internal`, override
+with `DS_STUB_HOST`), scheduled task registered, screenshot to `artifacts/configure-<ver>.png`):
 
 ```powershell
 .\build\build.ps1 -Version 4.60                                             # or 4.70 / 4.80 / 4.90
@@ -174,6 +217,7 @@ moved between the versions, from newest to oldest (compare each tag's
 | Configuration URL | `INopUrlHelper.RouteUrl(routeName)` | `IUrlHelperFactory.GetUrlHelper(IActionContextAccessor.ActionContext).RouteUrl(routeName)` | same as 4.80 | `IWebHelper.GetStoreLocation()` + path |
 | Named route (`RouteProvider`) | yes | yes | yes | no |
 | Permission check | `[CheckPermission(StandardPermission.Configuration.MANAGE_WIDGETS)]` | same as 4.90 | inline `IPermissionService.AuthorizeAsync(StandardPermissionProvider.ManageWidgets)` | same as 4.70 |
+| Inventory (`IPluginService.GetPluginDescriptorsAsync`, `IScheduleTask`, `IScheduleTaskService`, `AddHttpClient<T>().WithProxy()`) | identical | identical | identical | identical |
 | Area constant | `AreaNames.ADMIN` | same | same | `AreaNames.Admin` |
 | csproj paths | `$(SolutionDir)` | same | relative `..\..\` + `PluginPath=$(MSBuildProjectDirectory)\$(OutDir)` | same as 4.70 |
 | TFM / C# | net9.0 / latest | net9.0 / latest | net8.0 / 12 | net7.0 / 11 |
@@ -218,6 +262,10 @@ What the 4.60 project does differently from the 4.90 reference, all forced by th
   client validation blocks Save).
 - Everything else (settings, controller logic, view component, services, DI startup, model, views,
   locale strings) is the same code; file-scoped namespaces compile fine under C# 11.
+- The inventory feature needed no per-version change at all: `IPluginService.GetPluginDescriptorsAsync<IPlugin>(LoadPluginsMode.All)`,
+  `PluginDescriptor.{SystemName, FriendlyName, Version, Installed}`, `IScheduleTask`, `IScheduleTaskService`
+  and the `WithProxy()` HttpClient extension have the same names and signatures from 4.60 to 4.90. Only the
+  `SendInventory` controller action follows each version's permission style (attribute vs inline check).
 - PostgreSQL: 4.60 supports it natively (Npgsql 7.0.0); the compose file uses `postgres:15-alpine`
   and, as on 4.90, lets the wizard create the database so the `citext` extension gets installed.
 - The install wizard of 4.60 installs every plugin present in `/Plugins` during setup, so with the

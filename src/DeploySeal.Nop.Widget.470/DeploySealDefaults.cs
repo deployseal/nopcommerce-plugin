@@ -9,7 +9,7 @@ public static class DeploySealDefaults
     public static string SystemName => "Widgets.DeploySeal";
 
     /// <summary>Plugin version; must match plugin.json.</summary>
-    public static string PluginVersion => "1.0.0";
+    public static string PluginVersion => "1.1.0";
 
     /// <summary>Route name of the configuration page.</summary>
     public static string ConfigurationRouteName => "Plugin.Widgets.DeploySeal.Configure";
@@ -19,6 +19,12 @@ public static class DeploySealDefaults
 
     /// <summary>Prefix of every locale resource this plugin owns.</summary>
     public static string LocalePrefix => "Plugins.Widgets.DeploySeal";
+
+    /// <summary>Display name of the scheduled inventory send (Administration → System → Schedule tasks).</summary>
+    public static string InventoryTaskName => "Send platform inventory to DeploySeal";
+
+    /// <summary>Type name nopCommerce resolves the task by; must match the class's full name.</summary>
+    public static string InventoryTaskType => "Nop.Plugin.Widgets.DeploySeal.Services.InventorySyncTask";
 
     /// <summary>Path of the storefront view that emits the tag.</summary>
     public static string PublicInfoViewPath => "~/Plugins/Widgets.DeploySeal/Views/PublicInfo.cshtml";

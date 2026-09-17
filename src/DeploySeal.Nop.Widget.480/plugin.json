@@ -2,7 +2,7 @@
   "Group": "Widgets",
   "FriendlyName": "DeploySeal widget",
   "SystemName": "Widgets.DeploySeal",
-  "Version": "1.0.0",
+  "Version": "1.1.0",
   "SupportedVersions": [ "4.80" ],
   "Author": "DeploySeal",
   "DisplayOrder": 1,

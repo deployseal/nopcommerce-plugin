@@ -244,10 +244,91 @@
                 </div>
                 <div class="form-group row">
                     <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="ApiKey_OverrideForStore" asp-input="ApiKey" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="ApiKey" />
+                    </div>
+                    <div class="col-md-9">
+                        @* A secret: rendered as a password box that is never pre-filled; empty on Save keeps the stored key. *@
+                        <input asp-for="ApiKey" type="password" class="form-control" autocomplete="new-password" value="" placeholder="@(Model.ApiKeyIsSet ? "••••••••••••••••" : "ds_live_…")" />
+                        <span asp-validation-for="ApiKey"></span>
+                        @if (Model.ApiKeyIsSet)
+                        {
+                            <div class="small text-muted mt-1" id="deployseal-apikey-stored">
+                                @T("Plugins.Widgets.DeploySeal.ApiKey.Stored")
+                                <label class="ml-2 mb-0"><input asp-for="ClearApiKey" /> @T("Plugins.Widgets.DeploySeal.ApiKey.Clear")</label>
+                            </div>
+                        }
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="ApiBase_OverrideForStore" asp-input="ApiBase" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="ApiBase" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="ApiBase" />
+                        <span asp-validation-for="ApiBase"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="SendInventory_OverrideForStore" asp-input="SendInventory" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="SendInventory" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="SendInventory" />
+                        <span asp-validation-for="SendInventory"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
                         &nbsp;
                     </div>
                     <div class="col-md-9">
                         <button type="submit" name="save" class="btn btn-primary">@T("Admin.Common.Save")</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
+
+@* Contract §6: the platform inventory, sent server to server with the API key. Its own form so "Send now" never re-submits the settings. *@
+<form asp-controller="WidgetsDeploySeal" asp-action="SendInventory" method="post">
+    <div class="cards-group">
+        <div class="card card-default">
+            <div class="card-header">
+                @T("Plugins.Widgets.DeploySeal.Inventory.Title")
+            </div>
+            <div class="card-body" id="deployseal-inventory">
+                <p class="text-muted">@T("Plugins.Widgets.DeploySeal.Inventory.Intro")</p>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Inventory.Count")</label>
+                    </div>
+                    <div class="col-md-9">
+                        <code id="deployseal-inventory-count">@Model.InventoryItemCount</code>
+                        <span class="text-muted">(<span id="deployseal-inventory-installed">@Model.InventoryInstalledCount</span> @T("Plugins.Widgets.DeploySeal.Inventory.Installed"))</span>
+                        <div class="small text-muted">@T("Plugins.Widgets.DeploySeal.Inventory.Fingerprint"): <code id="deployseal-inventory-sha" style="word-break:break-all">sha256:@Model.InventorySha256</code></div>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Inventory.Endpoint")</label>
+                    </div>
+                    <div class="col-md-9">
+                        <code id="deployseal-inventory-endpoint" style="word-break:break-all">@Model.InventoryEndpoint</code>
+                    </div>
+                </div>
+                @if (!Model.CanSendInventory)
+                {
+                    <div class="alert alert-warning" id="deployseal-inventory-notready">@T("Plugins.Widgets.DeploySeal.Inventory.NotReady")</div>
+                }
+                <div class="form-group row">
+                    <div class="col-md-3">&nbsp;</div>
+                    <div class="col-md-9">
+                        <button type="submit" name="send-inventory" class="btn btn-secondary" disabled="@(!Model.CanSendInventory)">@T("Plugins.Widgets.DeploySeal.Inventory.SendNow")</button>
+                        <div class="small text-muted mt-2">@T("Plugins.Widgets.DeploySeal.Inventory.Schedule")</div>
                     </div>
                 </div>
             </div>

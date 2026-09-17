@@ -29,4 +29,17 @@ public static class DeploySealContract
 
     /// <summary>Where the installer creates environments and reads the Live / Stale / Not seen pill (§7.5).</summary>
     public const string AppUrl = "https://deployseal.com";
+
+    /// <summary>The DeploySeal API host the inventory is posted to (§6). Advanced setting; self-hosters change it.</summary>
+    public const string DefaultApiBase = "https://api.deployseal.com";
+
+    /// <summary>Inventory limits (§6): items per snapshot and the per-field lengths the API enforces.</summary>
+    public const int InventoryMaxItems = 500;
+    public const int InventorySystemNameMaxLength = 128;
+    public const int InventoryNameMaxLength = 200;
+    public const int InventoryVersionMaxLength = 32;
+    public const int PlatformVersionMaxLength = 32;
+
+    /// <summary>Default period of the scheduled inventory send, in hours.</summary>
+    public const int InventorySendPeriodHours = 6;
 }
