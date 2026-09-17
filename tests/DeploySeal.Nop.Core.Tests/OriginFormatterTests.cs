@@ -35,21 +35,21 @@ public class OriginFormatterTests
     public void ForStore_lists_the_store_url_first()
     {
         var origins = OriginFormatter.ForStore("https://shop.example.com/", sslEnabled: true, hosts: null);
-        Assert.Equal(["https://shop.example.com"], origins);
+        Assert.Equal(new[] { "https://shop.example.com" }, origins);
     }
 
     [Fact]
     public void ForStore_adds_https_twin_when_ssl_is_enabled_on_an_http_url()
     {
         var origins = OriginFormatter.ForStore("http://shop.example.com/", sslEnabled: true, hosts: null);
-        Assert.Equal(["http://shop.example.com", "https://shop.example.com"], origins);
+        Assert.Equal(new[] { "http://shop.example.com", "https://shop.example.com" }, origins);
     }
 
     [Fact]
     public void ForStore_keeps_http_only_when_ssl_is_off()
     {
         var origins = OriginFormatter.ForStore("http://localhost:8080/", sslEnabled: false, hosts: null);
-        Assert.Equal(["http://localhost:8080"], origins);
+        Assert.Equal(new[] { "http://localhost:8080" }, origins);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class OriginFormatterTests
             hosts: "shop.example.com, www.shop.example.com,shop.example.com:8443 , ,");
 
         Assert.Equal(
-            ["https://shop.example.com", "https://www.shop.example.com", "https://shop.example.com:8443"],
+            new[] { "https://shop.example.com", "https://www.shop.example.com", "https://shop.example.com:8443" },
             origins);
     }
 
@@ -69,7 +69,7 @@ public class OriginFormatterTests
         var origins = OriginFormatter.ForStore("http://shop.example.com/", sslEnabled: true, hosts: "www.shop.example.com");
 
         Assert.Equal(
-            ["http://shop.example.com", "https://shop.example.com", "http://www.shop.example.com", "https://www.shop.example.com"],
+            new[] { "http://shop.example.com", "https://shop.example.com", "http://www.shop.example.com", "https://www.shop.example.com" },
             origins);
     }
 

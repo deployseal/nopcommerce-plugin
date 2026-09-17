@@ -1,11 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    Runs against the newest Core TFM by default (the SDK installed on developer machines). To prove
+    the net7.0 build of Core (what the 4.60 plugin compiles), pass the TFM in as the MSBuild
+    property DeploySealTestTfm (see README, "Unit tests"): run "dotnet test" inside the .NET 7 SDK
+    container that build.ps1 uses, with "/p:DeploySealTestTfm=net7.0".
+  -->
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <DeploySealTestTfm Condition="'$(DeploySealTestTfm)' == ''">net9.0</DeploySealTestTfm>
+    <TargetFramework>$(DeploySealTestTfm)</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
   </PropertyGroup>
 
   <ItemGroup>

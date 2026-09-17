@@ -1,22 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    DeploySeal widget for nopCommerce 4.90 (net9.0).
+    DeploySeal widget for nopCommerce 4.60 (net7.0).
 
-    This project is not buildable in place: nopCommerce assemblies are not on NuGet, so it
-    references Nop.Web through $(SolutionDir) exactly like the plugins that ship with
-    nopCommerce. build/build.ps1 copies this folder into
-    <nop checkout>/src/Plugins/Nop.Plugin.Widgets.DeploySeal and builds it there with
-    -p:SolutionDir=<checkout>/src/ -p:DeploySealRepoRoot=<this repo>.
+    Mirrors src/Plugins/Nop.Plugin.Widgets.GoogleAnalytics/*.csproj from release-4.60.6: 4.60
+    plugins locate Nop.Web and Build/ClearPluginAssemblies.proj RELATIVELY (..\..\Presentation,
+    ..\..\Build) and hand ClearPluginAssemblies "PluginPath=$(MSBuildProjectDirectory)\$(OutDir)",
+    whereas 4.90 resolves everything through $(SolutionDir). build/build.ps1 still copies this
+    folder into <nop checkout>/src/Plugins/Nop.Plugin.Widgets.DeploySeal before building, so the
+    relative paths resolve the same way they do for nopCommerce's own plugins.
+
+    The .NET 7 SDK is end of life and is not installed on developer machines; build.ps1 builds
+    this project inside mcr.microsoft.com/dotnet/sdk:7.0 (versions.json "sdkImage") when no
+    matching SDK is found, with the repository mounted at /work. DeploySeal-owned paths therefore
+    use forward slashes, which MSBuild accepts on both Windows and Linux.
 
     The platform-independent logic lives in src/DeploySeal.Nop.Core and is compiled INTO this
-    assembly (see the Compile Include below) so the store gets a single DLL. The Razor views and
-    the logo are byte-identical across nopCommerce versions and are linked in from
-    src/DeploySeal.Nop.Widget.Shared. DeploySeal-owned paths use forward slashes so the same
-    file builds on Windows and inside a Linux SDK container.
+    assembly so the store gets a single DLL; the Razor views and logo are byte-identical across
+    nopCommerce versions and are linked in from src/DeploySeal.Nop.Widget.Shared.
   -->
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
     <AssemblyName>Nop.Plugin.Widgets.DeploySeal</AssemblyName>
     <RootNamespace>Nop.Plugin.Widgets.DeploySeal</RootNamespace>
     <Version>1.0.0</Version>
@@ -25,7 +29,7 @@
     <Product>DeploySeal widget for nopCommerce</Product>
     <Copyright>Copyright © DeploySeal</Copyright>
     <PackageProjectUrl>https://deployseal.com/docs/widget</PackageProjectUrl>
-    <OutputPath>$(SolutionDir)\Presentation\Nop.Web\Plugins\Widgets.DeploySeal</OutputPath>
+    <OutputPath>..\..\Presentation\Nop.Web\Plugins\Widgets.DeploySeal</OutputPath>
     <OutDir>$(OutputPath)</OutDir>
     <!-- Keep NuGet-cached DLLs out of the plugin folder; nopCommerce already ships them. -->
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
@@ -34,9 +38,18 @@
     <!-- Ship symbols only in Debug builds. -->
     <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
     <DebugSymbols Condition="'$(Configuration)' == 'Release'">false</DebugSymbols>
+    <!-- net7.0 defaults to C# 11, which is what DeploySeal.Nop.Core is pinned to. -->
+    <LangVersion>11</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      "annotations", not "enable": nopCommerce 4.60 itself is not nullable-aware, and with the
+      nullable context on, MVC treats every non-nullable string model property as [Required] and
+      nop's client-side validation blocks Save. Optional model strings are declared string? so
+      the same rule cannot bite even in annotations mode.
+    -->
     <Nullable>annotations</Nullable>
-    <LangVersion>latest</LangVersion>
+    <!-- The .NET 7 runtime is EOL; the warning is noise for a plugin that must target it. -->
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
     <!-- Where this repository lives; overridden by build.ps1 because the project is built from a copy. -->
     <DeploySealRepoRoot Condition="'$(DeploySealRepoRoot)' == ''">$(MSBuildProjectDirectory)/../..</DeploySealRepoRoot>
     <DeploySealShared>$(DeploySealRepoRoot)/src/DeploySeal.Nop.Widget.Shared</DeploySealShared>
@@ -71,18 +84,18 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)\Presentation\Nop.Web\Nop.Web.csproj" />
-    <ClearPluginAssemblies Include="$(SolutionDir)\Build\ClearPluginAssemblies.proj" />
+    <ProjectReference Include="..\..\Presentation\Nop.Web\Nop.Web.csproj" />
+    <ClearPluginAssemblies Include="$(MSBuildProjectDirectory)\..\..\Build\ClearPluginAssemblies.proj" />
   </ItemGroup>
 
   <!--
-    Runs after Build: nopCommerce's ClearPluginAssemblies deletes every DLL/PDB that Nop.Web already
-    ships; the ProjectReference to the Nop.Web *application* also drops its deps/runtimeconfig/
-    staticwebassets manifests into the folder, which nothing prunes, so they are deleted here.
-    What is left: the plugin DLL, plugin.json, Views, logo.png.
+    Runs after Build (nopCommerce's own "NopTarget" plus one step): ClearPluginAssemblies deletes
+    every DLL/PDB that Nop.Web already ships, then the deps/runtimeconfig/staticwebassets manifests
+    the Nop.Web ProjectReference copies in are deleted too. What is left: the plugin DLL,
+    plugin.json, Views, logo.png.
   -->
   <Target Name="NopTarget" AfterTargets="Build">
-    <MSBuild Projects="@(ClearPluginAssemblies)" Properties="PluginPath=$(OutDir)" Targets="NopClear" />
+    <MSBuild Projects="@(ClearPluginAssemblies)" Properties="PluginPath=$(MSBuildProjectDirectory)\$(OutDir)" Targets="NopClear" />
     <ItemGroup>
       <DeploySealStrayFiles Include="$(OutDir)Nop.Web.*;$(OutDir)*.deps.json;$(OutDir)*.staticwebassets.*.json" />
     </ItemGroup>

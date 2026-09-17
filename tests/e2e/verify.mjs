@@ -9,13 +9,20 @@
 //      and that it is absent on /Admin.
 //
 // Usage (Playwright is resolved from DS_E2E_NODE_MODULES when this repo has no node_modules):
-//   DS_E2E_NODE_MODULES=<path to a node_modules with playwright> node tests/e2e/verify.mjs
-// Env:
-//   DS_NOP_URL        base URL            (default http://localhost:8090)
-//   DS_NOP_VERSION    expected nop version (default 4.90.8) – used for the marker assertion
-//   DS_NOP_CONTAINER  docker container name; when set, the SHA-file scenario runs via docker exec
+//   DS_E2E_NODE_MODULES=<path to a node_modules with playwright> node tests/e2e/verify.mjs [4.60|4.90|...]
+// The optional argument is the nopCommerce major.minor from build/versions.json; it sets the
+// expected full version (from the tag), the port (80 + minor, e.g. 4.60 -> 8060) and the
+// container name docker/docker-compose.<ver>.yml produces. Env overrides any of them:
+//   DS_NOP_VERSION    major.minor or full version (default: the argument, else 4.90)
+//   DS_NOP_URL        base URL            (default http://localhost:80<minor>, e.g. 8060)
+//   DS_NOP_CONTAINER  docker container name for the SHA-file scenario (default deployseal-nop<digits>-nop-1;
+//                     set to "" to skip that scenario)
 //   DS_ADMIN_EMAIL / DS_ADMIN_PASSWORD   admin credentials (created by the wizard if needed)
 //   DS_SCREENSHOT     output PNG          (default artifacts/configure-<major.minor>.png)
+//
+// nopCommerce 4.60 and 4.90 share every selector this script touches (install wizard ids, the
+// storefront login button, the Local plugins grid and its install-plugin-link-<SystemName> /
+// plugin-apply-changes buttons, the plugin's own Configure page), so there is one script.
 
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -35,10 +42,17 @@ function loadPlaywright() {
 }
 const { chromium } = loadPlaywright();
 
-const BASE = (process.env.DS_NOP_URL || 'http://localhost:8090').replace(/\/$/, '');
-const NOP_VERSION = process.env.DS_NOP_VERSION || '4.90.8';
-const MAJOR_MINOR = NOP_VERSION.split('.').slice(0, 2).join('.');
-const CONTAINER = process.env.DS_NOP_CONTAINER || '';
+// Which nopCommerce: argument or DS_NOP_VERSION, resolved through build/versions.json.
+const versions = JSON.parse(fs.readFileSync(path.join(repoRoot, 'build', 'versions.json'), 'utf8'));
+const requested = process.env.DS_NOP_VERSION || process.argv[2] || '4.90';
+const MAJOR_MINOR = requested.split('.').slice(0, 2).join('.');
+const entry = versions[MAJOR_MINOR];
+if (!entry) throw new Error(`Unknown nopCommerce version "${requested}"; build/versions.json knows: ${Object.keys(versions).join(', ')}`);
+const NOP_VERSION = requested.split('.').length >= 3 ? requested : entry.tag.replace(/^release-/, '');
+const DIGITS = MAJOR_MINOR.replace('.', '');
+const PORT = '80' + MAJOR_MINOR.split('.')[1]; // 4.60 -> 8060, 4.90 -> 8090
+const BASE = (process.env.DS_NOP_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+const CONTAINER = process.env.DS_NOP_CONTAINER !== undefined ? process.env.DS_NOP_CONTAINER : `deployseal-nop${DIGITS}-nop-1`;
 const ADMIN_EMAIL = process.env.DS_ADMIN_EMAIL || 'admin@deployseal.test';
 const ADMIN_PASSWORD = process.env.DS_ADMIN_PASSWORD || 'Admin!Pass123';
 const SCREENSHOT = process.env.DS_SCREENSHOT || path.join(repoRoot, 'artifacts', `configure-${MAJOR_MINOR}.png`);
@@ -185,7 +199,10 @@ async function main() {
     const anon = await browser.newContext();
     const home = await fetchHtml(anon, BASE + '/');
     assert(home.status === 200, 'storefront home returned ' + home.status);
-    const head = home.html.match(/<head[\s\S]*?<\/head>/i)?.[0] || '';
+    // nopCommerce 4.60 minifies its HTML (WebMarkupMin) and drops the optional </head> end tag, so
+    // the head runs from <head> to whichever of </head> or <body comes first.
+    const head = home.html.match(/<head[\s\S]*?(?=<\/head>|<body[\s>])/i)?.[0] || '';
+    assert(head.length > 0, 'could not find <head> in the storefront HTML');
     const expected = tag(NOP_VERSION);
     assert(head.includes(expected), `storefront <head> does not contain the exact tag.\n  want ${expected}\n  head snippet: ${(home.html.match(/<script[^>]*ds-widget[^>]*>/i) || ['<none>'])[0]}`);
     assert(home.html.split('ds-widget.js').length === 2, 'the tag must appear exactly once');

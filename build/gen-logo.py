@@ -6,7 +6,7 @@ outlines and tones the product's SealMark component uses (packages/ui/src/compon
 in the DeploySeal monorepo: body, pressed field, die ring and the check cut into the wax),
 rasterised with Pillow only, so it needs no SVG toolchain.
 
-    python build/gen-logo.py                # writes src/DeploySeal.Nop.Widget.490/logo.png (128 px)
+    python build/gen-logo.py                # writes src/DeploySeal.Nop.Widget.Shared/logo.png (128 px)
     python build/gen-logo.py out.png 256    # custom output / size
 
 Requires: Pillow
@@ -92,7 +92,7 @@ def render(size: int, supersample: int = 8) -> Image.Image:
 
 
 def main() -> None:
-    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "src" / "DeploySeal.Nop.Widget.490" / "logo.png"
+    out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[1] / "src" / "DeploySeal.Nop.Widget.Shared" / "logo.png"
     size = int(sys.argv[2]) if len(sys.argv) > 2 else 128
     render(size).save(out, optimize=True)
     print(f"wrote {out} ({size}x{size})")

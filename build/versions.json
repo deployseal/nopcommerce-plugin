@@ -1,6 +1,6 @@
 {
-  "4.60": { "tag": "release-4.60.6", "tfm": "net7.0" },
-  "4.90": { "tag": "release-4.90.8", "tfm": "net9.0" },
-  "4.80": { "tag": "release-4.80.9", "tfm": "net9.0" },
-  "4.70": { "tag": "release-4.70.5", "tfm": "net8.0" }
+  "4.60": { "tag": "release-4.60.6", "tfm": "net7.0", "sdkImage": "mcr.microsoft.com/dotnet/sdk:7.0" },
+  "4.90": { "tag": "release-4.90.8", "tfm": "net9.0", "sdkImage": "mcr.microsoft.com/dotnet/sdk:9.0" },
+  "4.80": { "tag": "release-4.80.9", "tfm": "net9.0", "sdkImage": "mcr.microsoft.com/dotnet/sdk:9.0" },
+  "4.70": { "tag": "release-4.70.5", "tfm": "net8.0", "sdkImage": "mcr.microsoft.com/dotnet/sdk:8.0" }
 }

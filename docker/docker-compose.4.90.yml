@@ -8,6 +8,8 @@
 #
 # nopCommerce stops its own process after the install wizard; "restart: unless-stopped" brings it back.
 
+name: deployseal-nop490
+
 services:
   db:
     image: postgres:17-alpine

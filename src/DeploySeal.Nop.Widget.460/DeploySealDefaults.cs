@@ -1,0 +1,30 @@
+namespace Nop.Plugin.Widgets.DeploySeal;
+
+/// <summary>
+/// Plugin constants (the nopCommerce-facing half; contract values live in DeploySeal.Nop.Core.DeploySealContract).
+/// </summary>
+public static class DeploySealDefaults
+{
+    /// <summary>Plugin system name; must match plugin.json.</summary>
+    public static string SystemName => "Widgets.DeploySeal";
+
+    /// <summary>Plugin version; must match plugin.json.</summary>
+    public static string PluginVersion => "1.0.0";
+
+    /// <summary>
+    /// Path of the configuration page, relative to the store root. nopCommerce 4.60 has no
+    /// INopUrlHelper, so the plugin builds the URL from IWebHelper.GetStoreLocation() and relies on
+    /// the framework's default "{area:exists}/{controller}/{action}" route, exactly like the 4.60
+    /// Google Analytics plugin (no plugin RouteProvider).
+    /// </summary>
+    public static string ConfigurationRoutePattern => "Admin/WidgetsDeploySeal/Configure";
+
+    /// <summary>Prefix of every locale resource this plugin owns.</summary>
+    public static string LocalePrefix => "Plugins.Widgets.DeploySeal";
+
+    /// <summary>Path of the storefront view that emits the tag.</summary>
+    public static string PublicInfoViewPath => "~/Plugins/Widgets.DeploySeal/Views/PublicInfo.cshtml";
+
+    /// <summary>Path of the configuration view.</summary>
+    public static string ConfigureViewPath => "~/Plugins/Widgets.DeploySeal/Views/Configure.cshtml";
+}
