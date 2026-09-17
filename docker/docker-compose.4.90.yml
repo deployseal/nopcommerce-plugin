@@ -1,0 +1,38 @@
+# Local nopCommerce 4.90.8 + PostgreSQL with the built plugin folder bind-mounted in.
+#
+#   .\build\build.ps1 -Version 4.90
+#   docker compose -f docker/docker-compose.4.90.yml up -d
+#   open http://localhost:8090  -> install wizard (PostgreSQL, server "db", database/user/password "nop")
+#   node tests/e2e/verify.mjs   -> drives the wizard, installs + configures the plugin, asserts the tag
+#   docker compose -f docker/docker-compose.4.90.yml down -v
+#
+# nopCommerce stops its own process after the install wizard; "restart: unless-stopped" brings it back.
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: nop
+      POSTGRES_PASSWORD: nop
+      POSTGRES_DB: nop
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nop -d nop"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - nop490-db:/var/lib/postgresql/data
+
+  nop:
+    image: nopcommerceteam/nopcommerce:4.90.8
+    ports:
+      - "8090:80"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ../.nop/4.90/src/Presentation/Nop.Web/Plugins/Widgets.DeploySeal:/app/Plugins/Widgets.DeploySeal
+
+volumes:
+  nop490-db:

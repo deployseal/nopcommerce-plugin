@@ -1,0 +1,11 @@
+# nopCommerce source checkouts (fetched by build/build.ps1)
+.nop/
+# build output
+bin/
+obj/
+artifacts/
+*.user
+.vs/
+# e2e scratch
+tests/e2e/node_modules/
+tests/e2e/output/

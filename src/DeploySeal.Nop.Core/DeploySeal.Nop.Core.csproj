@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Pure, platform-independent half of the plugin: no nopCommerce references.
+    The per-version widget projects compile these sources straight into the
+    plugin assembly (see Nop.Plugin.Widgets.DeploySeal.csproj), so a store only
+    ever ships one DLL; this project exists so the logic can be unit-tested and
+    shared across nopCommerce versions/TFMs without a binary dependency.
+
+    It multi-targets the oldest and newest supported runtimes (nopCommerce 4.60
+    is net7.0) and pins the language to C# 11 so nothing slips in that the 4.60
+    plugin project could not compile.
+  -->
+  <PropertyGroup>
+    <TargetFrameworks>net7.0;net9.0</TargetFrameworks>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>11</LangVersion>
+    <RootNamespace>DeploySeal.Nop.Core</RootNamespace>
+    <!-- Only the targeting pack is needed for net7.0; no 7.0 SDK or runtime has to be installed. -->
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+  </PropertyGroup>
+
+</Project>

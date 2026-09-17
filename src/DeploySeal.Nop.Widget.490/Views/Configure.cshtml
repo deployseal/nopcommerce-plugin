@@ -1,0 +1,256 @@
+@model Nop.Plugin.Widgets.DeploySeal.Models.ConfigurationModel
+@{
+    Layout = "_ConfigurePlugin";
+}
+
+@await Component.InvokeAsync(typeof(StoreScopeConfigurationViewComponent))
+
+<form asp-controller="WidgetsDeploySeal" asp-action="Configure" method="post">
+    <div class="cards-group">
+        <div class="card card-default">
+            <div class="card-body">
+                @T("Plugins.Widgets.DeploySeal.Instructions")
+            </div>
+        </div>
+
+        <div class="card card-default">
+            <div class="card-header">
+                @T("Plugins.Widgets.DeploySeal.Facts.Title")
+            </div>
+            <div class="card-body" id="deployseal-facts">
+                <p class="text-muted">@T("Plugins.Widgets.DeploySeal.Facts.Intro")</p>
+
+                @if (!Model.IsWidgetActive)
+                {
+                    <div class="alert alert-warning">@T("Plugins.Widgets.DeploySeal.Facts.WidgetInactive")</div>
+                }
+
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Facts.Origins")</label>
+                        <div class="text-muted small">@T("Plugins.Widgets.DeploySeal.Facts.Origins.Hint")</div>
+                    </div>
+                    <div class="col-md-9">
+                        <table class="table table-sm table-bordered" id="deployseal-origins">
+                            <thead>
+                                <tr>
+                                    <th>@T("Plugins.Widgets.DeploySeal.Facts.Origins.Store")</th>
+                                    <th>Origin</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var store in Model.Stores)
+                                {
+                                    <tr class="@(store.IsInScope ? "" : "text-muted")">
+                                        <td>
+                                            @store.StoreName
+                                            @if (store.IsInScope)
+                                            {
+                                                <span class="badge badge-info">@T("Plugins.Widgets.DeploySeal.Facts.Origins.InScope")</span>
+                                            }
+                                            <div class="small text-muted">@store.StoreUrl</div>
+                                        </td>
+                                        <td>
+                                            @if (store.Origins.Count == 0)
+                                            {
+                                                <span class="text-danger">@T("Plugins.Widgets.DeploySeal.Facts.Origins.None")</span>
+                                            }
+                                            else
+                                            {
+                                                foreach (var origin in store.Origins)
+                                                {
+                                                    <div><code class="deployseal-origin">@origin</code></div>
+                                                }
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Facts.EnvironmentLabel")</label>
+                    </div>
+                    <div class="col-md-9">
+                        <code id="deployseal-environment">@Model.EffectiveEnvironmentLabel</code>
+                        <div class="small text-muted">@T("Plugins.Widgets.DeploySeal.Facts.EnvironmentLabel.Derived"): <code>@Model.DerivedEnvironmentLabel</code></div>
+                    </div>
+                </div>
+
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Facts.BuildMarker")</label>
+                    </div>
+                    <div class="col-md-9">
+                        @if (string.IsNullOrEmpty(Model.BuildMarker))
+                        {
+                            <span class="text-danger" id="deployseal-build">@T("Plugins.Widgets.DeploySeal.Facts.BuildMarker.None")</span>
+                        }
+                        else
+                        {
+                            <code id="deployseal-build" style="font-size:1.1em">@Model.BuildMarker</code>
+                        }
+                        <div class="small text-muted">@T("Plugins.Widgets.DeploySeal.Facts.BuildMarker.Source"): @Model.BuildMarkerSourceDescription</div>
+                        @if (!string.IsNullOrEmpty(Model.GitShaResolvedPath))
+                        {
+                            <div class="small text-muted">
+                                @T("Plugins.Widgets.DeploySeal.Facts.GitSha.Resolved"): <code>@Model.GitShaResolvedPath</code>
+                                &mdash;
+                                @if (Model.GitShaFound)
+                                {
+                                    <span class="text-success">@T("Plugins.Widgets.DeploySeal.Facts.GitSha.Found")</span>
+                                }
+                                else
+                                {
+                                    <span class="text-danger">@T("Plugins.Widgets.DeploySeal.Facts.GitSha.Missing")</span>
+                                }
+                            </div>
+                        }
+                        @if (!string.IsNullOrEmpty(Model.BuildMarkerWarning))
+                        {
+                            <div class="alert alert-warning mt-2 mb-0">@Model.BuildMarkerWarning</div>
+                        }
+                    </div>
+                </div>
+
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Facts.Versions")</label>
+                    </div>
+                    <div class="col-md-9">
+                        nopCommerce <code>@Model.NopVersion</code> &middot; plugin <code>@Model.PluginVersion</code>
+                    </div>
+                </div>
+
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Facts.Snippet")</label>
+                    </div>
+                    <div class="col-md-9">
+                        @if (string.IsNullOrEmpty(Model.SnippetPreview))
+                        {
+                            <span class="text-muted" id="deployseal-snippet">@T("Plugins.Widgets.DeploySeal.Facts.Snippet.None")</span>
+                        }
+                        else
+                        {
+                            <pre class="mb-1" style="white-space:pre-wrap;word-break:break-all"><code id="deployseal-snippet">@Model.SnippetPreview</code></pre>
+                            @if (!Model.Enabled)
+                            {
+                                <div class="small text-warning">@T("Plugins.Widgets.DeploySeal.Facts.Snippet.Disabled")</div>
+                            }
+                        }
+                    </div>
+                </div>
+
+                <div class="form-group row">
+                    <div class="col-md-3">&nbsp;</div>
+                    <div class="col-md-9">
+                        <a href="@Model.AppUrl" target="_blank" rel="noopener">@T("Plugins.Widgets.DeploySeal.Facts.Links")</a>
+                        &middot;
+                        <a href="@Model.DocsUrl" target="_blank" rel="noopener">@T("Plugins.Widgets.DeploySeal.Facts.Docs")</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-default">
+            <div class="card-body">
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="Enabled_OverrideForStore" asp-input="Enabled" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="Enabled" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="Enabled" />
+                        <span asp-validation-for="Enabled"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="SiteKey_OverrideForStore" asp-input="SiteKey" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="SiteKey" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="SiteKey" />
+                        <span asp-validation-for="SiteKey"></span>
+                        @if (!string.IsNullOrEmpty(Model.SiteKeyWarning))
+                        {
+                            <div class="small text-warning">@Model.SiteKeyWarning</div>
+                        }
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="EnvironmentLabel_OverrideForStore" asp-input="EnvironmentLabel" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="EnvironmentLabel" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="EnvironmentLabel" />
+                        <span asp-validation-for="EnvironmentLabel"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="BuildMarkerSourceId_OverrideForStore" asp-input="BuildMarkerSourceId" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="BuildMarkerSourceId" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-select asp-for="BuildMarkerSourceId" asp-items="Model.AvailableBuildMarkerSources" />
+                        <span asp-validation-for="BuildMarkerSourceId"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="GitShaFilePath_OverrideForStore" asp-input="GitShaFilePath" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="GitShaFilePath" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="GitShaFilePath" />
+                        <span asp-validation-for="GitShaFilePath"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="ManualBuildMarker_OverrideForStore" asp-input="ManualBuildMarker" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="ManualBuildMarker" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="ManualBuildMarker" />
+                        <span asp-validation-for="ManualBuildMarker"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="ScriptHost_OverrideForStore" asp-input="ScriptHost" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="ScriptHost" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="ScriptHost" />
+                        <span asp-validation-for="ScriptHost"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="RenderOnAdmin_OverrideForStore" asp-input="RenderOnAdmin" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="RenderOnAdmin" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="RenderOnAdmin" />
+                        <span asp-validation-for="RenderOnAdmin"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        &nbsp;
+                    </div>
+                    <div class="col-md-9">
+                        <button type="submit" name="save" class="btn btn-primary">@T("Admin.Common.Save")</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</form>
