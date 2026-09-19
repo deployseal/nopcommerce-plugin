@@ -82,14 +82,46 @@ if ($buildInDocker) {
     Write-Host "Build step will run inside $sdkImage (local SDK majors: $($localSdkMajors -join ', '); UseDocker=$($UseDocker.IsPresent))"
 }
 
-$projectDir = Join-Path $repo ("src\DeploySeal.Nop.Widget." + ($Version -replace "\.", ""))
+$projectDir = [System.IO.Path]::Combine($repo, "src", "DeploySeal.Nop.Widget." + ($Version -replace "\.", ""))
 if (-not (Test-Path (Join-Path $projectDir "Nop.Plugin.Widgets.DeploySeal.csproj"))) {
-    throw "No plugin project for nopCommerce $Version yet. Expected $projectDir\Nop.Plugin.Widgets.DeploySeal.csproj (versions.json knows the tag '$tag', $tfm, but the port has not been written)."
+    throw "No plugin project for nopCommerce $Version yet. Expected $projectDir/Nop.Plugin.Widgets.DeploySeal.csproj (versions.json knows the tag '$tag', $tfm, but the port has not been written)."
+}
+
+# --- 1c. Portable copy: robocopy is Windows-only, so this mirrors Source into Destination on any
+# OS (copies new/changed files, removes files that no longer exist in Source), skipping bin/ and
+# obj/ in both directions so a host build's incremental artefacts survive a re-copy. ---------------
+function Sync-ProjectTree {
+    param([Parameter(Mandatory)][string]$Source, [Parameter(Mandatory)][string]$Destination)
+    $sep = [System.IO.Path]::DirectorySeparatorChar
+    $excludeDirs = @("bin", "obj")
+    $isExcluded = {
+        param($fullName, $root)
+        $rel = $fullName.Substring($root.Length + 1)
+        $parts = $rel -split [regex]::Escape($sep)
+        return @($parts | Where-Object { $excludeDirs -contains $_ }).Count -gt 0
+    }
+    New-Item -ItemType Directory -Force $Destination | Out-Null
+    $sourceFull = (Resolve-Path $Source).Path
+    $destFull = (Resolve-Path $Destination).Path
+    Get-ChildItem -Path $sourceFull -Recurse -File | Where-Object { -not (& $isExcluded $_.FullName $sourceFull) } | ForEach-Object {
+        $rel = $_.FullName.Substring($sourceFull.Length + 1)
+        $destPath = Join-Path $destFull $rel
+        $destDir = Split-Path $destPath -Parent
+        if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Force $destDir | Out-Null }
+        Copy-Item $_.FullName $destPath -Force
+    }
+    if (Test-Path $destFull) {
+        Get-ChildItem -Path $destFull -Recurse -File | Where-Object { -not (& $isExcluded $_.FullName $destFull) } | ForEach-Object {
+            $rel = $_.FullName.Substring($destFull.Length + 1)
+            $srcPath = Join-Path $sourceFull $rel
+            if (-not (Test-Path $srcPath)) { Remove-Item $_.FullName -Force }
+        }
+    }
 }
 
 # --- 2. Ensure the nopCommerce checkout --------------------------------------------------------
-$nopDir = Join-Path $repo ".nop\$Version"
-$nopWebProj = Join-Path $nopDir "src\Presentation\Nop.Web\Nop.Web.csproj"
+$nopDir = [System.IO.Path]::Combine($repo, ".nop", $Version)
+$nopWebProj = [System.IO.Path]::Combine($nopDir, "src", "Presentation", "Nop.Web", "Nop.Web.csproj")
 if (-not (Test-Path $nopWebProj)) {
     Write-Host "Cloning nopCommerce $tag into $nopDir (depth 1)..."
     New-Item -ItemType Directory -Force (Split-Path $nopDir -Parent) | Out-Null
@@ -97,15 +129,15 @@ if (-not (Test-Path $nopWebProj)) {
     if ($LASTEXITCODE -ne 0) { throw "git clone of $tag failed." }
 }
 $solutionDir = (Resolve-Path (Join-Path $nopDir "src")).Path
-if (-not $solutionDir.EndsWith("\")) { $solutionDir += "\" }
+$solutionDirArg = $solutionDir
+if (-not $solutionDirArg.EndsWith([System.IO.Path]::DirectorySeparatorChar)) { $solutionDirArg += [System.IO.Path]::DirectorySeparatorChar }
 
 # --- 3. Copy the project into the checkout and build it ---------------------------------------
-$target = Join-Path $solutionDir "Plugins\Nop.Plugin.Widgets.DeploySeal"
+$target = [System.IO.Path]::Combine($solutionDir, "Plugins", "Nop.Plugin.Widgets.DeploySeal")
 Write-Host "Copying $projectDir -> $target"
-& robocopy $projectDir $target /MIR /XD bin obj /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "robocopy failed with exit code $LASTEXITCODE" }
+Sync-ProjectTree -Source $projectDir -Destination $target
 
-$pluginOut = Join-Path $solutionDir "Presentation\Nop.Web\Plugins\Widgets.DeploySeal"
+$pluginOut = [System.IO.Path]::Combine($solutionDir, "Presentation", "Nop.Web", "Plugins", "Widgets.DeploySeal")
 if (Test-Path $pluginOut) { Remove-Item $pluginOut -Recurse -Force }
 
 $buildStarted = Get-Date
@@ -127,10 +159,10 @@ if ($buildInDocker) {
         dotnet build $containerProject -c $Configuration "-p:SolutionDir=$containerSolutionDir" "-p:DeploySealRepoRoot=/work" --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet build (in $sdkImage) failed." }
 } else {
-    Write-Host "Building ($Configuration, $tfm) with SolutionDir=$solutionDir"
+    Write-Host "Building ($Configuration, $tfm) with SolutionDir=$solutionDirArg"
     & dotnet build (Join-Path $target "Nop.Plugin.Widgets.DeploySeal.csproj") `
         -c $Configuration `
-        -p:SolutionDir=$solutionDir `
+        -p:SolutionDir=$solutionDirArg `
         -p:DeploySealRepoRoot=$repo `
         --nologo
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed." }
