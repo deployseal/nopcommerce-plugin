@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  core-tests:
+    name: Core unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-core-tests-${{ runner.os }}-${{ hashFiles('tests/DeploySeal.Nop.Core.Tests/*.csproj', 'src/DeploySeal.Nop.Core/*.csproj') }}
+          restore-keys: |
+            nuget-core-tests-${{ runner.os }}-
+
+      - name: dotnet test
+        run: dotnet test tests/DeploySeal.Nop.Core.Tests --configuration Release
+
+  build-plugin:
+    name: Build plugin zip (${{ matrix.version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Only 4.90 (the reference build) runs on every PR/push so a broken change is caught fast
+        # without paying for all four SDK-container builds every time. release.yml builds all four
+        # versions (the full list lives in build/versions.json) when a release is actually cut.
+        version: ["4.90"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve TFM for this version (for the NuGet cache key)
+        id: tfm
+        shell: pwsh
+        run: |
+          $versions = Get-Content build/versions.json -Raw | ConvertFrom-Json
+          $tfm = $versions.PSObject.Properties['${{ matrix.version }}'].Value.tfm
+          "tfm=$tfm" >> $env:GITHUB_OUTPUT
+
+      - name: Cache NuGet packages (per TFM)
+        uses: actions/cache@v4
+        with:
+          # build.ps1's -NuGetVolume is handed straight to `docker run -v`, which accepts a host
+          # path as happily as a named volume, so this directory can be cached with actions/cache
+          # and bind-mounted into the SDK container at /root/.nuget/packages.
+          path: ~/nuget-cache-${{ matrix.version }}
+          key: nuget-plugin-${{ steps.tfm.outputs.tfm }}-${{ hashFiles('src/**/*.csproj') }}
+          restore-keys: |
+            nuget-plugin-${{ steps.tfm.outputs.tfm }}-
+
+      - name: Build plugin zip (in the version's SDK container)
+        shell: pwsh
+        run: ./build/build.ps1 -Version ${{ matrix.version }} -UseDocker -NuGetVolume "$HOME/nuget-cache-${{ matrix.version }}"
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DeploySeal.Nop.Widget-${{ matrix.version }}
+          path: artifacts/DeploySeal.Nop.Widget-${{ matrix.version }}.zip
+          if-no-files-found: error
