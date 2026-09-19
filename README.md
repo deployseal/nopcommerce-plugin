@@ -33,10 +33,15 @@ same tag. The only visible difference is the build marker's default, which is th
 
 ## Install (store administrator)
 
-1. Download `DeploySeal.Nop.Widget-<version>.zip` for your nopCommerce version.
-2. Administration → Configuration → Local plugins → **Upload plugin or theme**, pick the zip
-   (or unzip it so that `Plugins/Widgets.DeploySeal/plugin.json` exists), then **Install** and
-   **Apply changes** (nopCommerce restarts).
+1. Download `DeploySeal.Nop.Widget-all-versions.zip` from the [latest release](../../releases/latest)
+   — one archive that carries all four supported builds (4.60, 4.70, 4.80, 4.90) behind an
+   `uploadedItems.json` manifest, the same multi-version shape the nopCommerce Marketplace uses.
+   You do not pick a per-version zip yourself; nopCommerce reads its own version and installs the
+   matching build. (The four `DeploySeal.Nop.Widget-<version>.zip` files are still attached to
+   every release for a manual, single-version install — see below.)
+2. Administration → Configuration → Local plugins → **Upload plugin or theme**, pick
+   `DeploySeal.Nop.Widget-all-versions.zip`, then **Install** and **Apply changes** (nopCommerce
+   restarts).
 3. Open the plugin's **Configure** page. Only two settings are required: **Site key** and
    **Enabled**. Everything else already has a sensible default, so the page reads paste key, save,
    confirm — the **Essentials** card holds just those two plus the environment label (usually fine
@@ -46,6 +51,14 @@ same tag. The only visible difference is the build marker's default, which is th
 4. In DeploySeal: create an environment for the store, register the origins shown, copy the
    environment's public key into **Site key**, tick **Enabled**, **Save**.
 5. Load the storefront once; the environment shows as *Live* in DeploySeal.
+
+### Manual, single-version install
+
+If you would rather install the zip for your exact nopCommerce version by hand: download
+`DeploySeal.Nop.Widget-<version>.zip`, then either upload it the same way through **Upload plugin
+or theme**, or unzip it so that `Plugins/Widgets.DeploySeal/plugin.json` exists under your
+nopCommerce installation, then **Install** and **Apply changes**. Steps 3–5 above are the same
+either way.
 
 ## Settings
 
@@ -141,7 +154,11 @@ tests/DeploySeal.Nop.Core.Tests/  xunit tests for Core (slug, origins, marker co
                                   inventory canonical form / limits / request body / client behaviour)
 tests/e2e/verify.mjs              Playwright script that drives a real nopCommerce in Docker end to end, with a
                                   stub DeploySeal API on the host for the inventory request shape
+tests/e2e/verify-upload.mjs       Playwright script that proves the all-versions bundle through nopCommerce's
+                                  real "Upload plugin or theme" path (no plugin folder mounted)
 build/build.ps1                   clone nop tag → copy project in → build (locally or in the SDK container) → verify folder → zip
+build/bundle.ps1                  packs the four built zips into artifacts/DeploySeal.Nop.Widget-all-versions.zip
+                                  (uploadedItems.json manifest, one nopCommerce Marketplace upload for every version)
 build/versions.json               nop version → tag / TFM / SDK container image
 build/gen-logo.py                 regenerates logo.png from the product's seal outlines (Pillow only)
 docker/docker-compose.4.60.yml    nopcommerceteam/nopcommerce:4.60.6 + PostgreSQL 15, port 8060, plugin folder bind-mounted
@@ -219,6 +236,28 @@ docker compose -f docker/docker-compose.4.60.yml up -d                      # po
 $env:DS_E2E_NODE_MODULES = "<a node_modules folder that has playwright>"   # or npm i playwright in tests/e2e
 node tests/e2e/verify.mjs 4.60
 docker compose -f docker/docker-compose.4.60.yml down -v
+```
+
+### The all-versions bundle
+
+`build/bundle.ps1` packs the four zips `build/build.ps1` produces into
+`artifacts/DeploySeal.Nop.Widget-all-versions.zip` — a single archive with an `uploadedItems.json`
+manifest at its root (one entry per nopCommerce version, each pointing at that version's copy of
+the plugin folder inside the archive), which is the shape nopCommerce's own
+`Nop.Services.Plugins.UploadService` expects for a multi-version upload:
+
+```powershell
+.\build\build.ps1 -Version 4.60   # repeat for 4.70 / 4.80 / 4.90, or use the four zips already in artifacts/
+.\build\bundle.ps1                # -> artifacts/DeploySeal.Nop.Widget-all-versions.zip
+```
+
+To prove it through the real Marketplace upload path (not the bind-mount `docker-compose.<ver>.yml`
+files use) against a container with **no** plugin folder mounted:
+
+```powershell
+docker compose -f docker/docker-compose.4.90.no-mount.yml up -d      # port 8091 (4.60: 8061)
+node tests/e2e/verify-upload.mjs 4.90
+docker compose -f docker/docker-compose.4.90.no-mount.yml down -v
 ```
 
 `verify.mjs <ver>` takes the expected full version from the tag in `versions.json`, the port from the

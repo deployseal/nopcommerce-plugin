@@ -1,0 +1,38 @@
+# Local nopCommerce 4.60.6 + PostgreSQL WITHOUT the plugin folder mounted, for testing the real
+# Marketplace "Upload plugin or theme" path (tests/e2e/verify-upload.mjs) rather than the
+# bind-mount shortcut docker-compose.4.60.yml uses. Compose merges (does not replace) a service's
+# "volumes" list across -f overlays, so this is a standalone copy with that one volume left out,
+# not an override of docker-compose.4.60.yml.
+#
+#   docker compose -f docker/docker-compose.4.60.no-mount.yml up -d
+#   node tests/e2e/verify-upload.mjs 4.60
+#   docker compose -f docker/docker-compose.4.60.no-mount.yml down -v
+
+name: deployseal-nop460-upload
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: nop
+      POSTGRES_PASSWORD: nop
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nop -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - nop460up-db:/var/lib/postgresql/data
+
+  nop:
+    image: nopcommerceteam/nopcommerce:4.60.6
+    ports:
+      - "8061:80"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  nop460up-db:

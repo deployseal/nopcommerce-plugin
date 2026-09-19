@@ -82,6 +82,10 @@ jobs:
           path: artifacts
           merge-multiple: true
 
+      - name: Build the Marketplace-style all-versions bundle
+        shell: pwsh
+        run: ./build/bundle.ps1
+
       - name: Compute checksums
         working-directory: artifacts
         run: |
