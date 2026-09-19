@@ -9,7 +9,7 @@ public static class DeploySealDefaults
     public static string SystemName => "Widgets.DeploySeal";
 
     /// <summary>Plugin version; must match plugin.json.</summary>
-    public static string PluginVersion => "1.1.0";
+    public static string PluginVersion => "1.2.0";
 
     /// <summary>
     /// Path of the configuration page, relative to the store root. nopCommerce 4.60 has no

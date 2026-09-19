@@ -123,5 +123,11 @@ public record ConfigurationModel : BaseNopModel
     public string DocsUrl { get; set; } = string.Empty;
     public string AppUrl { get; set; } = string.Empty;
 
+    /// <summary>True when something under "Advanced" is not the default, so the view opens that card instead of folding it away.</summary>
+    public bool AdvancedHasNonDefaultValue { get; set; }
+
+    /// <summary>True when something under "Platform inventory" is not the default (a key is stored, the API base changed, or scheduling is on).</summary>
+    public bool PlatformInventoryHasNonDefaultValue { get; set; }
+
     #endregion
 }
