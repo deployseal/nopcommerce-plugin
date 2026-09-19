@@ -114,21 +114,24 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
         await _localizationService.AddOrUpdateLocaleResourceAsync(new Dictionary<string, string>
         {
             [$"{p}.Instructions"] =
-                "<p>DeploySeal loads a small tester widget on your storefront so testers can pin issues on the page and your readiness report can prove which environment and build were tested.<br /><br />" +
-                "Follow these steps:<br /><ol>" +
-                "<li>In DeploySeal, open your site and <b>create an environment</b> for this store (for example <i>Staging</i> or <i>Production</i>).</li>" +
-                "<li>Copy the environment's <b>public key</b> (it starts with <code>ls_</code>) into the <b>Site key</b> box below. Use one key per environment per store, never one key for everything.</li>" +
-                "<li>In that environment, <b>register the exact origin(s)</b> listed under \"Origins to register\" below. Matching is exact: scheme, host and port must all agree.</li>" +
-                "<li>Tick <b>Enabled</b>, click <b>Save</b>, then open the storefront and confirm the environment shows as <i>Live</i> in DeploySeal.</li>" +
+                "<p>DeploySeal loads a small tester widget on your storefront so testers can pin issues on the page and your readiness report can prove which environment and build were tested. Only two settings below are required — <b>Site key</b> and <b>Enabled</b> — everything else already has a sensible default.<br /><br />" +
+                "<ol>" +
+                "<li>In DeploySeal, create an <b>environment</b> for this store and register the origin(s) shown below.</li>" +
+                "<li><b>Paste</b> the environment's public key into <b>Site key</b>.</li>" +
+                "<li>Tick <b>Enabled</b> and <b>Save</b>.</li>" +
+                "<li><b>Confirm</b>: open the storefront, then check the environment shows as <i>Live</i> in DeploySeal.</li>" +
                 "</ol><a href=\"" + DeploySealContract.DocsUrl + "\" target=\"_blank\" rel=\"noopener\">Widget documentation</a></p>",
+
+            [$"{p}.Essentials.Title"] = "Essentials",
+            [$"{p}.Advanced.Title"] = "Advanced",
 
             [$"{p}.Enabled"] = "Enabled",
             [$"{p}.Enabled.Hint"] = "Render the DeploySeal widget tag on the storefront. Nothing is emitted while this is off.",
             [$"{p}.SiteKey"] = "Site key",
-            [$"{p}.SiteKey.Hint"] = "The public key of the DeploySeal environment this store is. It is not a secret: it only works from the environment's registered origins.",
+            [$"{p}.SiteKey.Hint"] = "The environment's public key, starts with \"ls_\" (legacy keys start with \"ds_\"). Not a secret: it only works from the environment's registered origins.",
             [$"{p}.SiteKey.FormatWarning"] = "DeploySeal keys start with \"ls_\" (legacy keys with \"ds_\"). Check that you copied the environment's public key, not something else.",
             [$"{p}.EnvironmentLabel"] = "Environment label",
-            [$"{p}.EnvironmentLabel.Hint"] = "The label this store declares itself as (lower-case letters, digits and hyphens, up to 32 characters). It is a declaration, not an identifier: the site key decides where evidence lands. Leave empty to use the value guessed from the store URL.",
+            [$"{p}.EnvironmentLabel.Hint"] = "Usually fine as guessed from the store URL. Change it only if this store should declare a different label (lower-case letters, digits and hyphens, up to 32 characters); it is a declaration, not an identifier — the site key decides where evidence lands.",
             [$"{p}.BuildMarkerSource"] = "Build marker source",
             [$"{p}.BuildMarkerSource.Hint"] = "Where the \"which code is running\" marker comes from. Prefer a git SHA when your deploy can write one.",
             [$"{p}.BuildMarkerSource.NopVersion"] = "nopCommerce version (e.g. 4.70.5)",
@@ -178,6 +181,7 @@ public class DeploySealPlugin : BasePlugin, IWidgetPlugin
             [$"{p}.Facts.BuildMarker"] = "Build marker emitted right now",
             [$"{p}.Facts.BuildMarker.None"] = "(none — the data-ds-build attribute will be omitted)",
             [$"{p}.Facts.BuildMarker.Source"] = "Source",
+            [$"{p}.Facts.BuildMarker.SeeAdvanced"] = "No SHA — see Advanced.",
             [$"{p}.Facts.GitSha.Resolved"] = "SHA file",
             [$"{p}.Facts.GitSha.Found"] = "found and readable",
             [$"{p}.Facts.GitSha.Missing"] = "missing or not a valid SHA",

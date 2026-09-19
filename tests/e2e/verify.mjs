@@ -84,6 +84,17 @@ const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function assert(cond, msg) { if (!cond) throw new Error('ASSERTION FAILED: ' + msg); }
 
+// The Configure page folds "Advanced" and "Platform inventory" into collapsed <details> cards when
+// their settings are all still default, so their fields are not visible (and Playwright's
+// actionability checks would time out) until opened. The page opens them itself once something
+// inside is non-default; on a still-default load this forces them open before touching a field.
+async function expandDetails(page, id) {
+  await page.evaluate((elId) => {
+    const el = document.getElementById(elId);
+    if (el && !el.open) el.open = true;
+  }, id);
+}
+
 async function waitForServer(label, predicate, timeoutMs = 6 * 60 * 1000) {
   const start = Date.now();
   let last = '';
@@ -223,6 +234,7 @@ async function main() {
     await page.fill('#SiteKey', SITE_KEY);
     await page.fill('#EnvironmentLabel', LABEL);
     await page.check('#Enabled');
+    await expandDetails(page, 'deployseal-advanced'); // GitShaFilePath lives in the collapsed Advanced card
     await page.fill('#GitShaFilePath', '');
     await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('button[name="save"]')]);
     await page.waitForSelector('#deployseal-snippet');
@@ -266,6 +278,7 @@ async function main() {
       log(`writing ${SHA_FILE} into container ${CONTAINER}`);
       execFileSync('docker', ['exec', CONTAINER, 'sh', '-c', `printf '%s\\n' '${SHA}' > /app/${SHA_FILE}`], { stdio: 'inherit' });
       await page.goto(BASE + '/Admin/WidgetsDeploySeal/Configure');
+      await expandDetails(page, 'deployseal-advanced');
       await page.fill('#GitShaFilePath', SHA_FILE);
       await Promise.all([page.waitForNavigation({ waitUntil: 'load' }), page.click('button[name="save"]')]);
       const shaBuild = (await page.locator('#deployseal-build').innerText()).trim();
@@ -287,6 +300,7 @@ async function main() {
     try {
       log(`stub DeploySeal API listening on ${STUB_BASE} (host port ${STUB_PORT})`);
       await page.goto(BASE + '/Admin/WidgetsDeploySeal/Configure');
+      await expandDetails(page, 'deployseal-platform-inventory'); // ApiKey/ApiBase/SendInventory live in the collapsed Platform inventory card
       await page.waitForSelector('#ApiKey');
       assert(await page.locator('#deployseal-inventory-notready').count() === 1, 'without an API key the inventory card must say it is not ready');
       assert(await page.locator('button[name="send-inventory"]').isDisabled(), 'without an API key "Send inventory now" must be disabled');
@@ -335,7 +349,7 @@ async function main() {
       assert(names.slice().sort().join('\n') === names.join('\n'), 'items must be sorted by systemName (ordinal)');
       assert(new Set(names).size === names.length, 'systemNames must be unique');
       const self = r.body.items.find((i) => i.systemName === 'Widgets.DeploySeal');
-      assert(self && self.enabled === true && self.version === '1.1.0', 'the plugin must report itself as installed: ' + JSON.stringify(self));
+      assert(self && self.enabled === true && self.version === '1.2.0', 'the plugin must report itself as installed: ' + JSON.stringify(self));
       assert(/HTTP 201/.test(alerts1) && new RegExp(`${r.body.items.length} plugins`).test(alerts1), 'the page must show the 201 and the count: ' + alerts1);
       log(`inventory sent: ${r.body.items.length} plugins (${names.filter((n) => r.body.items.find((i) => i.systemName === n).enabled).length} installed), 201 shown`);
 

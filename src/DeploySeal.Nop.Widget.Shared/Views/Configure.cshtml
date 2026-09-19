@@ -15,15 +15,65 @@
 
         <div class="card card-default">
             <div class="card-header">
-                @T("Plugins.Widgets.DeploySeal.Facts.Title")
+                @T("Plugins.Widgets.DeploySeal.Essentials.Title")
             </div>
-            <div class="card-body" id="deployseal-facts">
-                <p class="text-muted">@T("Plugins.Widgets.DeploySeal.Facts.Intro")</p>
-
+            <div class="card-body">
                 @if (!Model.IsWidgetActive)
                 {
                     <div class="alert alert-warning">@T("Plugins.Widgets.DeploySeal.Facts.WidgetInactive")</div>
                 }
+
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="Enabled_OverrideForStore" asp-input="Enabled" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="Enabled" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="Enabled" />
+                        <span asp-validation-for="Enabled"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="SiteKey_OverrideForStore" asp-input="SiteKey" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="SiteKey" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="SiteKey" />
+                        <span asp-validation-for="SiteKey"></span>
+                        @if (!string.IsNullOrEmpty(Model.SiteKeyWarning))
+                        {
+                            <div class="small text-warning">@Model.SiteKeyWarning</div>
+                        }
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        <nop-override-store-checkbox asp-for="EnvironmentLabel_OverrideForStore" asp-input="EnvironmentLabel" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                        <nop-label asp-for="EnvironmentLabel" />
+                    </div>
+                    <div class="col-md-9">
+                        <nop-editor asp-for="EnvironmentLabel" />
+                        <span asp-validation-for="EnvironmentLabel"></span>
+                    </div>
+                </div>
+                <div class="form-group row">
+                    <div class="col-md-3">
+                        &nbsp;
+                    </div>
+                    <div class="col-md-9">
+                        <button type="submit" name="save" class="btn btn-primary">@T("Admin.Common.Save")</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-default">
+            <div class="card-header">
+                @T("Plugins.Widgets.DeploySeal.Facts.Title")
+            </div>
+            <div class="card-body" id="deployseal-facts">
+                <p class="text-muted">@T("Plugins.Widgets.DeploySeal.Facts.Intro")</p>
 
                 <div class="form-group row">
                     <div class="col-md-3">
@@ -111,7 +161,7 @@
                         }
                         @if (!string.IsNullOrEmpty(Model.BuildMarkerWarning))
                         {
-                            <div class="alert alert-warning mt-2 mb-0">@Model.BuildMarkerWarning</div>
+                            <div class="small text-warning mt-1">@T("Plugins.Widgets.DeploySeal.Facts.BuildMarker.SeeAdvanced")</div>
                         }
                     </div>
                 </div>
@@ -156,42 +206,11 @@
             </div>
         </div>
 
-        <div class="card card-default">
+        <details class="card card-default" id="deployseal-advanced" @(Model.AdvancedHasNonDefaultValue ? "open" : null)>
+            <summary class="card-header" style="cursor:pointer">
+                @T("Plugins.Widgets.DeploySeal.Advanced.Title")
+            </summary>
             <div class="card-body">
-                <div class="form-group row">
-                    <div class="col-md-3">
-                        <nop-override-store-checkbox asp-for="Enabled_OverrideForStore" asp-input="Enabled" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
-                        <nop-label asp-for="Enabled" />
-                    </div>
-                    <div class="col-md-9">
-                        <nop-editor asp-for="Enabled" />
-                        <span asp-validation-for="Enabled"></span>
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <div class="col-md-3">
-                        <nop-override-store-checkbox asp-for="SiteKey_OverrideForStore" asp-input="SiteKey" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
-                        <nop-label asp-for="SiteKey" />
-                    </div>
-                    <div class="col-md-9">
-                        <nop-editor asp-for="SiteKey" />
-                        <span asp-validation-for="SiteKey"></span>
-                        @if (!string.IsNullOrEmpty(Model.SiteKeyWarning))
-                        {
-                            <div class="small text-warning">@Model.SiteKeyWarning</div>
-                        }
-                    </div>
-                </div>
-                <div class="form-group row">
-                    <div class="col-md-3">
-                        <nop-override-store-checkbox asp-for="EnvironmentLabel_OverrideForStore" asp-input="EnvironmentLabel" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
-                        <nop-label asp-for="EnvironmentLabel" />
-                    </div>
-                    <div class="col-md-9">
-                        <nop-editor asp-for="EnvironmentLabel" />
-                        <span asp-validation-for="EnvironmentLabel"></span>
-                    </div>
-                </div>
                 <div class="form-group row">
                     <div class="col-md-3">
                         <nop-override-store-checkbox asp-for="BuildMarkerSourceId_OverrideForStore" asp-input="BuildMarkerSourceId" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
@@ -210,6 +229,10 @@
                     <div class="col-md-9">
                         <nop-editor asp-for="GitShaFilePath" />
                         <span asp-validation-for="GitShaFilePath"></span>
+                        @if (!string.IsNullOrEmpty(Model.BuildMarkerWarning))
+                        {
+                            <div class="alert alert-warning mt-2 mb-0">@Model.BuildMarkerWarning</div>
+                        }
                     </div>
                 </div>
                 <div class="form-group row">
@@ -242,6 +265,16 @@
                         <span asp-validation-for="RenderOnAdmin"></span>
                     </div>
                 </div>
+            </div>
+        </details>
+
+        <details class="card card-default" id="deployseal-platform-inventory" @(Model.PlatformInventoryHasNonDefaultValue ? "open" : null)>
+            <summary class="card-header" style="cursor:pointer">
+                @T("Plugins.Widgets.DeploySeal.Inventory.Title")
+            </summary>
+            <div class="card-body" id="deployseal-inventory">
+                <p class="text-muted">@T("Plugins.Widgets.DeploySeal.Inventory.Intro")</p>
+
                 <div class="form-group row">
                     <div class="col-md-3">
                         <nop-override-store-checkbox asp-for="ApiKey_OverrideForStore" asp-input="ApiKey" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
@@ -280,28 +313,7 @@
                         <span asp-validation-for="SendInventory"></span>
                     </div>
                 </div>
-                <div class="form-group row">
-                    <div class="col-md-3">
-                        &nbsp;
-                    </div>
-                    <div class="col-md-9">
-                        <button type="submit" name="save" class="btn btn-primary">@T("Admin.Common.Save")</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</form>
 
-@* Contract §6: the platform inventory, sent server to server with the API key. Its own form so "Send now" never re-submits the settings. *@
-<form asp-controller="WidgetsDeploySeal" asp-action="SendInventory" method="post">
-    <div class="cards-group">
-        <div class="card card-default">
-            <div class="card-header">
-                @T("Plugins.Widgets.DeploySeal.Inventory.Title")
-            </div>
-            <div class="card-body" id="deployseal-inventory">
-                <p class="text-muted">@T("Plugins.Widgets.DeploySeal.Inventory.Intro")</p>
                 <div class="form-group row">
                     <div class="col-md-3">
                         <label class="col-form-label">@T("Plugins.Widgets.DeploySeal.Inventory.Count")</label>
@@ -327,11 +339,18 @@
                 <div class="form-group row">
                     <div class="col-md-3">&nbsp;</div>
                     <div class="col-md-9">
-                        <button type="submit" name="send-inventory" class="btn btn-secondary" disabled="@(!Model.CanSendInventory)">@T("Plugins.Widgets.DeploySeal.Inventory.SendNow")</button>
+                        @* Submits the separate SendInventory form below: a button cannot sit inside two forms, so the
+                           "form" attribute assigns it to that form regardless of where it is in the document. *@
+                        <button type="submit" name="send-inventory" form="deployseal-send-inventory-form" class="btn btn-secondary" disabled="@(!Model.CanSendInventory)">@T("Plugins.Widgets.DeploySeal.Inventory.SendNow")</button>
                         <div class="small text-muted mt-2">@T("Plugins.Widgets.DeploySeal.Inventory.Schedule")</div>
                     </div>
                 </div>
             </div>
-        </div>
+        </details>
     </div>
 </form>
+
+@* Contract §6: the platform inventory send target. Kept as its own (empty, hidden) form so "Send now"
+   never re-submits the settings above; the button that submits it lives inside the Platform inventory
+   card via the "form" attribute on <button>. *@
+<form id="deployseal-send-inventory-form" asp-controller="WidgetsDeploySeal" asp-action="SendInventory" method="post" style="display:none"></form>

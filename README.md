@@ -37,30 +37,52 @@ same tag. The only visible difference is the build marker's default, which is th
 2. Administration → Configuration → Local plugins → **Upload plugin or theme**, pick the zip
    (or unzip it so that `Plugins/Widgets.DeploySeal/plugin.json` exists), then **Install** and
    **Apply changes** (nopCommerce restarts).
-3. Open the plugin's **Configure** page. It shows, for each store, the exact origins to register,
-   the environment label it will declare, the exact build marker it will emit and where that comes
-   from, and the tag it will render.
+3. Open the plugin's **Configure** page. Only two settings are required: **Site key** and
+   **Enabled**. Everything else already has a sensible default, so the page reads paste key, save,
+   confirm — the **Essentials** card holds just those two plus the environment label (usually fine
+   as guessed), with a **Save** button right there. Below it, "What this store will send" confirms
+   what you just saved: the exact origins to register, the environment label it will declare, the
+   exact build marker it will emit and where that comes from, and the tag it will render.
 4. In DeploySeal: create an environment for the store, register the origins shown, copy the
    environment's public key into **Site key**, tick **Enabled**, **Save**.
 5. Load the storefront once; the environment shows as *Live* in DeploySeal.
 
 ## Settings
 
-All settings are overridable per store (multi-store: one key per environment per store).
+All settings are overridable per store (multi-store: one key per environment per store). The
+Configure page groups them into three cards: **Essentials** (open, the two settings almost every
+store needs), **Advanced** and **Platform inventory** (both collapsed by default — folded away
+because their defaults are almost always right, not hidden; either one opens itself automatically
+the moment something inside it is not the default, so nothing you have already set is ever hidden).
+
+### Essentials
 
 | Setting | Default | Meaning |
 |---|---|---|
 | Enabled | off | Master switch; nothing renders while off. |
 | Site key | empty | The environment's public key (`ls_…`; legacy `ds_…` keys still work). Not a secret: it only works from the environment's registered origins. |
-| Environment label | guessed from the store URL: `staging` when the host contains staging/uat/test/dev/qa/sandbox/preprod/localhost, else `production` | Declared label, `[a-z0-9-]`, ≤ 32. Saved slugged; an empty value falls back to the guess. |
+| Environment label | guessed from the store URL: `staging` when the host contains staging/uat/test/dev/qa/sandbox/preprod/localhost, else `production` | Declared label, `[a-z0-9-]`, ≤ 32. Saved slugged; an empty value falls back to the guess — usually fine as guessed. |
+
+### Advanced (collapsed by default)
+
+| Setting | Default | Meaning |
+|---|---|---|
 | Build marker source | nopCommerce version + git SHA when available | One of: nopCommerce version (`4.90.8`), nopCommerce version + git SHA (`4.90.8+a1b2c3d`, degrades to the version alone when no SHA can be read), git SHA only (emits nothing when unreadable), manual. |
-| Git SHA file path | empty | File holding the deployed commit SHA (first line, 7–40 hex chars). Relative paths resolve from the application root, e.g. `App_Data/build-sha.txt`. Have your deploy pipeline write it. |
+| Git SHA file path | empty | File holding the deployed commit SHA (first line, 7–40 hex chars). Relative paths resolve from the application root, e.g. `App_Data/build-sha.txt`. Have your deploy pipeline write it. When no SHA can be read, "What this store will send" shows a one-line notice ("No SHA — see Advanced"); the full explanation is here, next to this field. |
 | Manual build marker | empty | Used by the manual source. One token, no whitespace, ≤ 64. |
-| Script host (advanced) | `https://cdn.deployseal.com` | The only supported host; leave it. |
+| Script host | `https://cdn.deployseal.com` | The only supported host; leave it. |
 | Also load in the admin area | off | The admin layout has no head zone, so this uses the first admin body zone. |
+
+### Platform inventory (collapsed by default)
+
+| Setting | Default | Meaning |
+|---|---|---|
 | DeploySeal API key | empty | An organisation API key with the **Write** scope (DeploySeal → Settings → Integrations → API keys). A secret: the page never shows it again; leaving the box empty on Save keeps it, the "Remove the stored API key" box deletes it. Only used for the inventory. |
-| API base (advanced) | `https://api.deployseal.com` | The API host the inventory is posted to. Self-hosters change it; `verify.mjs` points it at a stub. |
+| API base | `https://api.deployseal.com` | The API host the inventory is posted to. Self-hosters change it; `verify.mjs` points it at a stub. |
 | Send inventory on a schedule | off | Post the inventory every 6 hours through the scheduled task. "Send inventory now" works without it. |
+
+This card also shows the plugin-count/fingerprint/"sent to" facts and the **Send inventory now**
+button described below.
 
 The build marker is resolved once per request. Whatever it resolves to is printed on the Configure
 page, verbatim, so it can be copied into a campaign's release identifier (`a1b2c3d` does **not**

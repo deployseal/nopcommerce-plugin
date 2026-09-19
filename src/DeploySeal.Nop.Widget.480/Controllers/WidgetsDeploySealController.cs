@@ -244,5 +244,18 @@ public class WidgetsDeploySealController : BasePluginController
         model.InventorySha256 = snapshot.Sha256;
         model.InventoryEndpoint = InventoryClient.EndpointUrl(settings.ApiBase, settings.SiteKey);
         model.CanSendInventory = key.Length > 0 && !string.IsNullOrWhiteSpace(settings.ApiKey);
+
+        // Layout only: whether "Advanced" / "Platform inventory" hold a non-default value, so the
+        // view opens that card instead of folding away something the store admin already set.
+        model.AdvancedHasNonDefaultValue =
+            settings.BuildMarkerSourceId != (int)BuildMarkerSource.NopVersionPlusGitSha ||
+            !string.IsNullOrWhiteSpace(settings.GitShaFilePath) ||
+            !string.IsNullOrWhiteSpace(settings.ManualBuildMarker) ||
+            !string.Equals(settings.ScriptHost, DeploySealContract.DefaultScriptHost, StringComparison.OrdinalIgnoreCase) ||
+            settings.RenderOnAdmin;
+        model.PlatformInventoryHasNonDefaultValue =
+            model.ApiKeyIsSet ||
+            !string.Equals(settings.ApiBase, DeploySealContract.DefaultApiBase, StringComparison.OrdinalIgnoreCase) ||
+            settings.SendInventory;
     }
 }
