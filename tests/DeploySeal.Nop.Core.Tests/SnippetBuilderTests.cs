@@ -7,11 +7,31 @@ public class SnippetBuilderTests
     [Fact]
     public void Output_is_byte_exact_to_the_contract_tag()
     {
-        var tag = SnippetBuilder.Build("https://cdn.deployseal.com", "ls_test0000000000000000000000000000000", "staging", "4.90.8+a1b2c3d");
+        var tag = SnippetBuilder.Build("https://cdn.deployseal.com", "ls_test0000000000000000000000000000000", "staging", "4.90.8+a1b2c3d", "1.3.0");
 
         Assert.Equal(
-            "<script src=\"https://cdn.deployseal.com/ds-widget.js\" data-ds-site-key=\"ls_test0000000000000000000000000000000\" data-ds-environment=\"staging\" data-ds-build=\"4.90.8+a1b2c3d\" async></script>",
+            "<script src=\"https://cdn.deployseal.com/ds-widget.js\" data-ds-site-key=\"ls_test0000000000000000000000000000000\" data-ds-environment=\"staging\" data-ds-build=\"4.90.8+a1b2c3d\" data-ds-installer=\"nopcommerce-plugin/1.3.0\" async></script>",
             tag);
+    }
+
+    [Fact]
+    public void Installer_is_the_contract_prefix_plus_the_plugin_version_and_obeys_the_alphabet()
+    {
+        Assert.Equal("nopcommerce-plugin/1.3.0", SnippetBuilder.Installer("1.3.0"));
+        Assert.Equal("nopcommerce-plugin/1.3.0-rc.1", SnippetBuilder.Installer(" 1.3.0-RC.1 "));
+        Assert.True(SnippetBuilder.Installer("1.3.0").Length <= DeploySealContract.InstallerMaxLength);
+        Assert.Matches("^[a-z0-9./-]{1,48}$", SnippetBuilder.Installer("1.3.0"));
+        Assert.Equal(48, SnippetBuilder.Installer(new string('9', 60)).Length);
+    }
+
+    [Fact]
+    public void Installer_attribute_follows_the_build_marker_and_is_omitted_without_a_version()
+    {
+        Assert.Equal(
+            "<script src=\"https://cdn.deployseal.com/ds-widget.js\" data-ds-site-key=\"ls_x\" data-ds-installer=\"nopcommerce-plugin/1.3.0\" async></script>",
+            SnippetBuilder.Build(null, "ls_x", null, null, "1.3.0"));
+        Assert.DoesNotContain("data-ds-installer", SnippetBuilder.Build(null, "ls_x", "staging", "4.90.8"));
+        Assert.DoesNotContain("data-ds-installer", SnippetBuilder.Build(null, "ls_x", "staging", "4.90.8", "  "));
     }
 
     [Fact]

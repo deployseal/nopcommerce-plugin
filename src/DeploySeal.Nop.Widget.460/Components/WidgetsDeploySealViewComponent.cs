@@ -41,7 +41,8 @@ public class WidgetsDeploySealViewComponent : NopViewComponent
             _settings.ScriptHost,
             _settings.SiteKey,
             EnvironmentLabel.Slugify(_settings.EnvironmentLabel),
-            marker.Marker);
+            marker.Marker,
+            DeploySealDefaults.PluginVersion);
 
         return string.IsNullOrEmpty(tag)
             ? Content(string.Empty)

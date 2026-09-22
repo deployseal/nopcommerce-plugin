@@ -1,7 +1,7 @@
 namespace DeploySeal.Nop.Core;
 
 /// <summary>
-/// Constants fixed by docs/INSTALL_CONTRACT.md (v1, 2026-09-17). Every install path
+/// Constants fixed by docs/INSTALL_CONTRACT.md (v1.2, 2026-09-22). Every install path
 /// shares these numbers; change them there first.
 /// </summary>
 public static class DeploySealContract
@@ -17,6 +17,16 @@ public static class DeploySealContract
 
     /// <summary>Build marker: single token, no whitespace, ≤ 64 chars (§2, §4).</summary>
     public const int BuildMarkerMaxLength = 64;
+
+    /// <summary>
+    /// The install path this plugin declares in <c>data-ds-installer</c> (§2):
+    /// <c>nopcommerce-plugin/{plugin version}</c>. DeploySeal uses it to say "Installed via the
+    /// nopCommerce plugin" and to warn when a pasted snippet is live beside the plugin's tag.
+    /// </summary>
+    public const string InstallerPrefix = "nopcommerce-plugin/";
+
+    /// <summary>Installer value: ≤ 48 chars of [a-z0-9.-/] (§2).</summary>
+    public const int InstallerMaxLength = 48;
 
     /// <summary>Shortest SHA the report will match as a prefix (§4).</summary>
     public const int MinShaLength = 7;

@@ -76,9 +76,13 @@ const LABEL = 'staging';
 const SHA = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const SHA_FILE = 'App_Data/build-sha.txt';
 
+const PLUGIN_VERSION = '1.3.0';
+
+// The contract tag as the plugin renders it (install contract v1.2): every rendered tag carries
+// data-ds-installer so DeploySeal can attribute the install path to this plugin.
 const tag = (build) =>
   `<script src="https://cdn.deployseal.com/ds-widget.js" data-ds-site-key="${SITE_KEY}" data-ds-environment="${LABEL}"` +
-  (build ? ` data-ds-build="${build}"` : '') + ` async></script>`;
+  (build ? ` data-ds-build="${build}"` : '') + ` data-ds-installer="nopcommerce-plugin/${PLUGIN_VERSION}" async></script>`;
 
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -349,7 +353,7 @@ async function main() {
       assert(names.slice().sort().join('\n') === names.join('\n'), 'items must be sorted by systemName (ordinal)');
       assert(new Set(names).size === names.length, 'systemNames must be unique');
       const self = r.body.items.find((i) => i.systemName === 'Widgets.DeploySeal');
-      assert(self && self.enabled === true && self.version === '1.2.0', 'the plugin must report itself as installed: ' + JSON.stringify(self));
+      assert(self && self.enabled === true && self.version === PLUGIN_VERSION, 'the plugin must report itself as installed: ' + JSON.stringify(self));
       assert(/HTTP 201/.test(alerts1) && new RegExp(`${r.body.items.length} plugins`).test(alerts1), 'the page must show the 201 and the count: ' + alerts1);
       log(`inventory sent: ${r.body.items.length} plugins (${names.filter((n) => r.body.items.find((i) => i.systemName === n).enabled).length} installed), 201 shown`);
 
