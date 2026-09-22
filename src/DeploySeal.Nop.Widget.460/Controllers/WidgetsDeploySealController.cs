@@ -242,7 +242,7 @@ public class WidgetsDeploySealController : BasePluginController
         model.GitShaResolvedPath = _buildMarkerService.ResolveShaFilePath(settings.GitShaFilePath);
         model.GitShaFound = _buildMarkerService.ReadGitSha(settings.GitShaFilePath) is not null;
 
-        model.SnippetPreview = SnippetBuilder.Build(settings.ScriptHost, settings.SiteKey, model.EffectiveEnvironmentLabel, marker.Marker);
+        model.SnippetPreview = SnippetBuilder.Build(settings.ScriptHost, settings.SiteKey, model.EffectiveEnvironmentLabel, marker.Marker, DeploySealDefaults.PluginVersion);
 
         var key = settings.SiteKey?.Trim() ?? string.Empty;
         if (key.Length > 0 && !(key.StartsWith("ls_", StringComparison.Ordinal) || key.StartsWith("ds_", StringComparison.Ordinal)))

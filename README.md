@@ -6,14 +6,29 @@ build** is running, so the readiness report can prove what was tested. It is one
 DeploySeal install paths and obeys the DeploySeal install contract to the byte: the tag it emits is
 
 ```html
-<script src="https://cdn.deployseal.com/ds-widget.js" data-ds-site-key="ls_…" data-ds-environment="staging" data-ds-build="4.90.8+a1b2c3d" async></script>
+<script src="https://cdn.deployseal.com/ds-widget.js" data-ds-site-key="ls_…" data-ds-environment="staging" data-ds-build="4.90.8+a1b2c3d" data-ds-installer="nopcommerce-plugin/1.3.0" async></script>
 ```
 
 placed in `<head>`, once, only on the public storefront (never in `/Admin` unless you opt in).
+`data-ds-installer` (install contract v1.2) names this plugin and its version as the install path,
+so DeploySeal's site page says *Installed via the nopCommerce plugin 1.3.0*, opens its install
+drawer on the plugin, and warns when a pasted snippet is still live on the same environment —
+remove any snippet from your theme or *Custom `<head>` HTML* once the plugin is enabled.
 
 With an organisation API key it also reports the **platform inventory** — every plugin nopCommerce
 knows about, with its version and whether it is installed — so the readiness report can print
 exactly which plugins were installed when a release was tested (install contract §6).
+
+## Plugin version
+
+| Plugin | Released   | What changed |
+|--------|------------|--------------|
+| 1.3.0  | 2026-09-22 | Emits `data-ds-installer="nopcommerce-plugin/1.3.0"` (install contract v1.2) so DeploySeal shows the plugin as the install path and can warn about a second, pasted tag. |
+| 1.2.0  | 2026-09-19 | See the [release notes](https://github.com/deployseal/nopcommerce-plugin/releases). |
+| 1.1.0  | 2026-09-19 | See the [release notes](https://github.com/deployseal/nopcommerce-plugin/releases). |
+
+The version lives in each project's `plugin.json` and `DeploySealDefaults.PluginVersion` (they must
+match — the tag's `data-ds-installer` is built from the latter); pushing a `v*` tag releases the five assets.
 
 ## Supported nopCommerce versions
 
